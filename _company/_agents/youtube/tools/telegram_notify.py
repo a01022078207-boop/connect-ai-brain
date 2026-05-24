@@ -6,31 +6,64 @@ Two modes:
   2. With CLI arg(s) → sends those as the message body. Other tools can call
      this script to push their summaries.
 
-Reads TELEGRAM_BOT_TOKEN / TELEGRAM_CHAT_ID from youtube_account.json."""
-import os, json, sys, time
+telegram_v3 — Secretary's tools/telegram_setup.json is the canonical
+UI-managed home (input via Skills ⚙️). Falls back to legacy config.md
+and finally to youtube_account.json so older setups keep working."""
+import os, json, sys, time, re
 
 HERE = os.path.dirname(os.path.abspath(__file__))
 ACCOUNT = os.path.join(HERE, "youtube_account.json")
+# tools/ → youtube/ → _agents/ → brain root
+BRAIN_ROOT = os.path.abspath(os.path.join(HERE, "..", "..", ".."))
+SECRETARY_TOOL_JSON = os.path.join(BRAIN_ROOT, "_agents", "secretary", "tools", "telegram_setup.json")
+SECRETARY_CFG = os.path.join(BRAIN_ROOT, "_agents", "secretary", "config.md")
+
+def _resolve_telegram():
+    """Secretary tool JSON > Secretary legacy md > youtube_account.json."""
+    token, chat = "", ""
+    if os.path.exists(SECRETARY_TOOL_JSON):
+        try:
+            with open(SECRETARY_TOOL_JSON, "r", encoding="utf-8") as f:
+                cfg = json.load(f)
+            token = (cfg.get("TELEGRAM_BOT_TOKEN") or "").strip()
+            chat  = (cfg.get("TELEGRAM_CHAT_ID") or "").strip()
+        except Exception:
+            pass
+    if (not token or not chat) and os.path.exists(SECRETARY_CFG):
+        try:
+            with open(SECRETARY_CFG, "r", encoding="utf-8") as f:
+                txt = f.read()
+            if not token:
+                m = re.search(r"TELEGRAM_BOT_TOKEN\s*[:：=]\s*([A-Za-z0-9:_\-]+)", txt)
+                if m: token = m.group(1).strip()
+            if not chat:
+                m = re.search(r"TELEGRAM_CHAT_ID\s*[:：=]\s*(-?\d+)", txt)
+                if m: chat = m.group(1).strip()
+        except Exception:
+            pass
+    if (not token or not chat) and os.path.exists(ACCOUNT):
+        try:
+            with open(ACCOUNT, "r", encoding="utf-8") as f:
+                acct = json.load(f)
+            if not token: token = (acct.get("TELEGRAM_BOT_TOKEN") or "").strip()
+            if not chat:  chat  = (acct.get("TELEGRAM_CHAT_ID") or "").strip()
+        except Exception:
+            pass
+    return token, chat
 
 def main():
-    if not os.path.exists(ACCOUNT):
-        print("❌ youtube_account.json이 없어요.")
-        sys.exit(1)
-    with open(ACCOUNT, "r", encoding="utf-8") as f:
-        acct = json.load(f)
-    token = (acct.get("TELEGRAM_BOT_TOKEN") or "").strip()
-    chat  = (acct.get("TELEGRAM_CHAT_ID") or "").strip()
+    token, chat = _resolve_telegram()
     if not token or not chat:
-        print("❌ TELEGRAM_BOT_TOKEN 또는 TELEGRAM_CHAT_ID가 비어있어요.")
-        print("   봇 만들기: Telegram에서 @BotFather → /newbot")
-        print("   chat_id 찾기: 봇한테 메시지 한 번 보내고")
-        print("                  https://api.telegram.org/bot<TOKEN>/getUpdates 열기")
+        print("❌ TELEGRAM_BOT_TOKEN 또는 TELEGRAM_CHAT_ID를 못 찾았어요.")
+        print("   권장: 비서(Secretary) 클릭 → Skills → 📨 텔레그램 연결 ⚙️ → 폼에 입력")
+        print("   봇 만들기: Telegram → @BotFather → /newbot")
+        print("   chat_id: 봇에 메시지 1회 → https://api.telegram.org/bot<TOKEN>/getUpdates 에서 chat.id 확인")
         sys.exit(1)
 
     if len(sys.argv) > 1:
         body = " ".join(sys.argv[1:])
     else:
-        body = f"✅ 텔레그램 연결 정상 — {time.strftime('%Y-%m-%d %H:%M:%S')}\n\n이 메시지가 보이면 다른 YouTube 도구들도 자동으로 보고를 보낼 수 있어요."
+        body = f"✅ 텔레그램 연결 정상 — {time.strftime('%Y-%m-%d %H:%M:%S')}\n\n비서(Secretary) 또는 YouTube 도구가 이 채널로 보고를 보낼 수 있습니다."
 
     try:
         import requests
