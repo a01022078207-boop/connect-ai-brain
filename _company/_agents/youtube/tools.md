@@ -70,6 +70,12 @@ YouTube Data API v3 + OAuth 연결
 - `enabled`: true
 - `requires_credentials`: `config.md` 참조
 
+### `video_uploader`
+OAuth 2.0 기반 유튜브 예약/자동 업로더
+
+- `enabled`: true
+- `requires_credentials`: `youtube_account.json` 참조
+
 
 ---
 
@@ -79,11 +85,6 @@ _아래 도구들은 향후 버전에서 추가 예정. 지금은 카탈로그�
 
 ### `comment_replier` _(예정)_
 댓글 분류 + 답글 초안 (Draft 레벨)
-
-- 아직 구현되지 않은 도구입니다. 로드맵에 있으며 향후 버전에서 추가 예정.
-
-### `video_uploader` _(예정)_
-제목·태그·썸네일·예약발행 업로드
 
 - 아직 구현되지 않은 도구입니다. 로드맵에 있으며 향후 버전에서 추가 예정.
 
