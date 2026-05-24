@@ -10,6 +10,13 @@ Requires: pip install google-api-python-client google-auth-oauthlib requests
 """
 import os, json, sys, time
 
+if sys.platform.startswith('win'):
+    try:
+        sys.stdout.reconfigure(encoding='utf-8')
+        sys.stderr.reconfigure(encoding='utf-8')
+    except Exception:
+        pass
+
 HERE = os.path.dirname(os.path.abspath(__file__))
 CONFIG_PATH = os.path.join(HERE, "video_uploader.json")
 ACCOUNT_PATH = os.path.join(HERE, "youtube_account.json")
@@ -177,7 +184,7 @@ def main():
     video_file = cfg.get("VIDEO_FILE_PATH", "").strip()
     # 상대 경로인 경우 brain root/workspace root에서 찾도록 보정
     # tools/ -> youtube/ -> _agents/ -> brain root
-    root_dir = os.path.abspath(os.path.join(HERE, "..", "..", ".."))
+    root_dir = os.path.abspath(os.path.join(HERE, "..", "..", "..", ".."))
     full_video_path = os.path.abspath(video_file) if os.path.isabs(video_file) else os.path.abspath(os.path.join(root_dir, video_file))
 
     if not os.path.exists(full_video_path):
