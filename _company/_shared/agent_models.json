@@ -6,5 +6,7 @@
   "writer": "gemma3:4b",
   "editor": "gemma3:4b",
   "designer": "gemma4:e4b",
-  "instagram": "gemma3:4b"
+  "instagram": "gemma3:4b",
+  "youtube": "gemma4:e4b",
+  "developer": "gemma4:e4b"
 }
