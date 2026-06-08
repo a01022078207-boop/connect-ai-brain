@@ -1,7 +1,7 @@
 # 🧬 1인 기업 OS — 자가 매뉴얼
 
 ## 이 폴더는 무엇인가요?
-당신의 1인 기업의 두뇌입니다. 7명의 AI 에이전트가 여기서 일합니다.
+당신의 1인 기업의 두뇌입니다. CEO 오케스트레이션 아래 여러 명의 AI 에이전트가 여기서 일합니다.
 
 ## 폴더 구조
 - `_shared/` — 모든 에이전트가 매번 읽는 공동 메모리
@@ -33,7 +33,7 @@
 - `_shared/`, `_agents/*/memory.md`, `_agents/*/prompt.md`, `sessions/` → git sync ✅
 - `_agents/*/config.md`, `_cache/` → git sync ❌ (시크릿·캐시)
 
-## 7명의 에이전트
+## 에이전트 명단
 - 🧭 **CEO** (Chief Executive Agent): 오케스트레이션, 작업 분해, 종합 판단, 다음 액션 결정
 - 📺 **YouTube** (Head of YouTube): 유튜브 채널 운영, 영상 기획서(제목·후크·구조), 트렌드 분석, 썸네일 브리프, 업로드 메타데이터, 시청자 유지율 전략
 - 📷 **Instagram** (Head of Instagram): 인스타그램 릴스/피드 콘셉트, 캡션, 해시태그 전략, 게시 시간, 스토리, 팔로워 인게이지먼트
@@ -43,4 +43,7 @@
 - 📱 **Secretary** (Personal Assistant): 일정·할 일 관리, 다른 에이전트 작업 요약·텔레그램 보고, 데일리 브리핑, 알림
 - ✂️ **Editor** (Video & Content Editor): 영상 편집 디렉션, 컷 구성, B-roll 제안, 자막·타이틀, 스크립트 다듬기, 콘텐츠 폴리싱
 - ✍️ **Writer** (Copywriter): 카피라이팅, 영상 스크립트 초안, 인스타 캡션, 블로그 글, 메일 톤앤매너, 후크 작성
-- 🔍 **Researcher** (Trend & Data Researcher): 트렌드 리서치, 경쟁사 분석, 데이터 수집·요약, 인용 자료 정리, 사실 확인
+- 🔍 **Researcher** (Trend & Data Researcher / 정보검색자): 트렌드 리서치, 경쟁사 분석, 데이터 수집·요약, 인용 자료 정리, 사실 확인
+- 📣 **Marketing** (Head of Marketing & Growth / 마케팅): 채널 믹스·퍼널 설계, 캠페인 기획, A/B 테스트, 그로스 루프, 배포 계획
+- 🧐 **Critic** (Critical Reviewer / 비판적검토자): 출고 전 검수, 사실·근거·수치 교차 검증, 광고법·저작권·가품 리스크 점검, 🟢/🟡/🔴 판정
+- 🎬 **Content** (Content Producer / 컨텐츠제작자): 릴스·쇼츠·카드뉴스 완성형 패키지, 샷리스트·자막·CTA, 멀티 포맷 재활용, 발행 캘린더
