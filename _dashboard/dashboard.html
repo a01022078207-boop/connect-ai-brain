@@ -1,0 +1,182 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>🛰️ 에이전트 오케스트레이션 대시보드</title>
+<style>
+  :root{
+    --bg:#0b0e14; --panel:#141925; --panel2:#1b2230; --line:#262e3d;
+    --txt:#e6e9ef; --dim:#8b93a7; --accent:#6ea8fe; --green:#46d39a;
+    --amber:#f5c451; --red:#f47174; --new:#b08cff;
+  }
+  *{box-sizing:border-box}
+  body{margin:0;background:var(--bg);color:var(--txt);
+    font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,"Apple SD Gothic Neo","Malgun Gothic",sans-serif;
+    line-height:1.55;font-size:14px}
+  a{color:var(--accent)}
+  .wrap{max-width:1180px;margin:0 auto;padding:28px 20px 80px}
+  header.hero{display:flex;flex-wrap:wrap;align-items:flex-end;gap:16px;
+    border-bottom:1px solid var(--line);padding-bottom:20px;margin-bottom:24px}
+  .hero h1{font-size:22px;margin:0 0 4px}
+  .hero .tag{color:var(--dim);max-width:680px;font-size:13px}
+  .hero .stats{display:flex;gap:10px;margin-left:auto;flex-wrap:wrap}
+  .stat{background:var(--panel);border:1px solid var(--line);border-radius:12px;
+    padding:10px 14px;min-width:92px;text-align:center}
+  .stat b{display:block;font-size:20px}
+  .stat span{color:var(--dim);font-size:11px}
+  h2.sec{font-size:13px;letter-spacing:.04em;color:var(--dim);
+    text-transform:uppercase;margin:34px 0 14px}
+  /* 오케스트레이션 흐름 */
+  .flow{display:flex;flex-wrap:wrap;align-items:center;gap:8px;
+    background:var(--panel);border:1px solid var(--line);border-radius:14px;padding:16px}
+  .node{background:var(--panel2);border:1px solid var(--line);border-radius:10px;
+    padding:8px 12px;font-size:13px;white-space:nowrap}
+  .node.ceo{border-color:var(--accent);color:#cfe0ff}
+  .node.new{border-color:var(--new)}
+  .arrow{color:var(--dim)}
+  /* 카드 그리드 */
+  .grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(310px,1fr));gap:14px}
+  .card{background:var(--panel);border:1px solid var(--line);border-radius:14px;
+    padding:16px;display:flex;flex-direction:column;gap:10px;position:relative}
+  .card.off{opacity:.5}
+  .card .top{display:flex;align-items:flex-start;gap:10px}
+  .card .emoji{font-size:26px;line-height:1}
+  .card .who{flex:1;min-width:0}
+  .card .who b{font-size:15px}
+  .card .who .persona{color:var(--dim);font-size:12px}
+  .card .role{color:var(--dim);font-size:12px;margin-top:2px}
+  .badges{display:flex;gap:6px;flex-wrap:wrap}
+  .b{font-size:11px;padding:2px 8px;border-radius:20px;border:1px solid var(--line);color:var(--dim)}
+  .b.on{color:var(--green);border-color:#1e5a44;background:#0f2a20}
+  .b.new{color:var(--new);border-color:#4b3a78;background:#241a3a}
+  .b.a0{color:var(--dim)} .b.a1{color:var(--accent);border-color:#2c4a78}
+  .b.a2{color:var(--amber);border-color:#5a4a1e} .b.a3{color:var(--green);border-color:#1e5a44}
+  .block{background:var(--panel2);border-radius:10px;padding:10px 12px}
+  .block h4{margin:0 0 6px;font-size:11px;color:var(--dim);letter-spacing:.03em}
+  .block ul{margin:0;padding-left:16px}
+  .block li{margin:3px 0;font-size:12.5px}
+  .block .empty{color:var(--dim);font-size:12px}
+  .card .foot{margin-top:auto;display:flex;justify-content:space-between;
+    color:var(--dim);font-size:11px;border-top:1px solid var(--line);padding-top:8px}
+  /* 세션 타임라인 */
+  .sessions{display:flex;flex-direction:column;gap:8px}
+  .srow{display:flex;gap:12px;background:var(--panel);border:1px solid var(--line);
+    border-radius:10px;padding:10px 14px;align-items:center}
+  .srow .ts{font-variant-numeric:tabular-nums;color:var(--dim);font-size:12px;
+    min-width:130px}
+  .srow .cmd{flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+  .srow .who{display:flex;gap:4px}
+  .chip{font-size:14px}
+  .srow .rep{font-size:11px;color:var(--green)}
+  .filter{display:flex;gap:8px;margin-bottom:14px;flex-wrap:wrap}
+  .filter input{background:var(--panel);border:1px solid var(--line);color:var(--txt);
+    border-radius:8px;padding:8px 12px;flex:1;min-width:200px;font-size:13px}
+  .foot-note{color:var(--dim);font-size:12px;margin-top:40px;text-align:center}
+  @media(max-width:640px){.srow .ts{min-width:auto}.hero .stats{width:100%;margin-left:0}}
+</style>
+</head>
+<body>
+<div class="wrap">
+  <header class="hero">
+    <div>
+      <h1 id="coName"></h1>
+      <div class="tag" id="coTag"></div>
+    </div>
+    <div class="stats" id="coStats"></div>
+  </header>
+
+  <h2 class="sec">🔀 오케스트레이션 흐름</h2>
+  <div class="flow" id="flow"></div>
+
+  <h2 class="sec">🤖 에이전트 (<span id="agCount"></span>)</h2>
+  <div class="filter">
+    <input id="q" placeholder="에이전트 이름·역할 검색…">
+  </div>
+  <div class="grid" id="agents"></div>
+
+  <h2 class="sec">🗂️ 최근 세션 (총 <span id="sesTotal"></span>개)</h2>
+  <div class="sessions" id="sessions"></div>
+
+  <div class="foot-note" id="genAt"></div>
+</div>
+
+<script>
+const DATA = {"company": {"name": "브레이킹라이프(Breaking_Life)", "tagline": "AI 에이전트 팀과 자동화 기술을 활용해 20~40대 사회생활과 인간관계에 지친 모든 이들을 위한 감성 콘텐츠 및 국내 공동구매/B2B 위탁 유통 전문 브랜드", "target": "20~40대 사회생활과 인간관계에 지친 모든 이들", "tone": "친근하고 정감 가며 깊은 공감을 이끌어내는 어조, 정밀하고 신속한 국내 배송(3PL 및 제조사 직송)과 적극적인 사후 케어(친절한 교환/환불)를 통해 탄탄한 고객 신뢰를 주는 톤.", "tasksCompleted": 119, "knowledgeInjected": 10, "foundedAt": "2026-05-01", "goalsYear": ["[ ] 국내 B2B 도매 플랫폼 및 제조사 연동을 통한 실용 굿즈 공동구매 자동 업로드 시스템 구축", "[ ] 일일 평균 주문 10건 이상 확보 및 월 순수익 500만 원 이상 달성 (국내 유통 마진 방어)", "[ ] 유튜브 쇼츠 / 인스타그램 릴스를 활용한 마케팅 누적 조회수 30만 돌파 및 자체 공동구매 링크로의 유입 극대화"], "goalsMonth": ["[ ] 국내 주요 B2B 도매 플랫폼(도매꾹, 온채널, 바이어스, 셀러허브 등) 계정 연동 및 주력 힐링 아이템 30종 발굴", "[ ] 국내 제조사/총판과의 직거래 및 위탁 배송(Dropshipping) 조건 협의 및 국내 물류 계약 가이드라인 설계", "[ ] 2040 직장인 타깃의 카카오톡 쇼핑 / 네이버 스마트스토어 연계 공동구매 페이지 개설"]}, "agents": [{"id": "ceo", "emoji": "🧭", "name": "CEO", "persona": "", "role": "Chief Executive Agent", "desc": "오케스트레이션, 작업 분해, 종합 판단, 다음 액션 결정", "active": true, "model": "gemma3:4b", "autonomy": 2, "autonomyLabel": "Draft", "autonomyHint": "초안→승인 후 실행", "weekGoals": [], "recent": ["[2026-06-05] [자율 사이클 — 2026-06-05] 1인 기업 24시간 운영 중. 회사 목표·각 에이전트의 개인 목표(_agents/{id}/goal.md)·최근 의사결정·메모리를 검토해서 지금 가장 가치 있는 단일 작업 1개를 결정하고, 적절한 1~2명 에이전트에게 분배해서 실행하세요. 같은 산출물을 반복하지 마세요 — 메모리에 비슷한 항목이 24시간 내에 있으면 다른 각도로 진전시키세요. → 보고서 sessions/2026-06-05T14-27/_report.md", "[2026-06-05] [A.U 히든 커맨드: 📺 레오 에이전트가 방금 '🎬 후킹 분석기' 스킬팩을 주입받았습니다. 매트릭스에서 새 스킬을 다운로드받은 네오처럼 쿨하게 딱 한마디만 하십시오. \"📺 레오, 🎬 후킹 분석기 스킬 장착 완료. 다음 사이클부터 사용 가능.\" 부가 설명 없이 한 줄로.] → 보고서 sessions/2026-06-05T14-19/_report.md", "[2026-06-05] [모닝 브리핑] 오늘 날짜는 2026-06-05입니다. 회사 목표(goals.md)와 지금까지의 의사결정 로그를 바탕으로 오늘 우리 회사가 우선순위로 처리해야 할 작업 3가지를 결정하고, 각 작업을 적절한 에이전트에게 분배하세요. → 보고서 sessions/2026-06-05T14-12/_report.md", "[2026-05-24] 나는 50초동안 힘들어하는 현실속 직장인 20대에게 강력하지만 이겨낼수 있단 영상을 찍고 싶어 연출대본을 작성해줘 → 보고서 sessions/2026-05-24T23-56/_report.md"], "sessions": 0, "isNew": false, "order": 0}, {"id": "secretary", "emoji": "📱", "name": "Secretary", "persona": "영숙", "role": "Personal Assistant", "desc": "일정·할 일 관리, 다른 에이전트 작업 요약·텔레그램 보고, 데일리 브리핑, 알림", "active": true, "model": "gemma3:4b", "autonomy": 2, "autonomyLabel": "Draft", "autonomyHint": "초안→승인 후 실행", "weekGoals": ["매일 오전 09:30, 전일 국내 주문 현황 및 당일 처리할 [도매 플랫폼 충전금, 발주 마감 알림, 예정된 공동구매 론칭 일정]을 텔레그램으로 전송하는 스마트 보고 체계 구성", "국내 B2B 스마트스토어/카카오 채널 CS 대응을 위한 [국내 전용 시나리오별 즉시 복사붙여넣기형 답변집] 작성 및 등록", "이번 주 유통 관련 일정(도매처 충전일, 3PL 보관 수수료 결제일, 인플루언서 공구 정산일 등) 캘린더 등록 및 모니터링"], "recent": ["[2026-06-05] 회사 목표, 에이전트 개인 목표, 최근 의사결정, 메모리 검토 후 오늘 가장 가치 있는 단일 작업 1개 결정 및 유튜브, 인스타그램 등 관련 에이전트에게 전달 → 산출물 sessions/2026-06-05T14-27/secretary.md", "[2026-06-05] 회사 목표(goals.md)와 이전 의사결정 로그 검토 후, 오늘 우리 회사가 우선순위로 처리해야 할 작업 3가지를 결정하고, 각 작업을 적절한 에이전트에게 분배합니다. → 산출물 sessions/2026-06-05T14-12/secretary.md", "[2026-05-31] 회사 목표(goals.md)와 최근 의사결정 로그를 검토하여 오늘 처리해야 할 3가지 우선순위 업무를 선정하고, 각 업무에 필요한 에이전트 및 상세 지시를 작성합니다. 목표 달성에 가장 효과적인 경로를 고려하여 에이전트를 분배합니다. → 산출물 sessions/2026-05-31T12-50/secretary.md", "[2026-05-24] 최근 의사결정 및 메모리 검토 후 가장 가치 있는 단일 작업 1개 및 실행 계획 수립 (24시간 운영 중 회사 목표 및 에이전트 개인 목표 고려) → 산출물 sessions/2026-05-24T23-50/secretary.md"], "sessions": 43, "isNew": false, "order": 1}, {"id": "researcher", "emoji": "🔍", "name": "Researcher", "persona": "김소싱", "role": "Trend & Data Researcher / 정보검색자", "desc": "트렌드 리서치, 경쟁사 분석, 데이터 수집·요약, 인용 자료 정리, 사실 확인", "active": true, "model": "gemma3:4b", "autonomy": 2, "autonomyLabel": "Draft", "autonomyHint": "초안→승인 후 실행", "weekGoals": ["국내 주요 도매 사이트(도매매, 온채널)에서 검색량 대비 경쟁 강도 1.0 이하인 직장인 타깃 감성 데스크테리어/스트레스 해소 굿즈 키워드 5개 추출", "발굴한 키워드에 대응하며 국내 낱개 위탁배송(Dropshipping)이 가능한 도매 공급처 3곳의 [단가, 최소수량, 출고 기준] 매칭", "국내에서 활발히 진행 중인 동종 감성 굿즈 공동구매 피드 3곳을 선정하여 상세 셀링 포인트 및 가격대 패턴 역분석"], "recent": ["[2026-06-05] 우선순위 작업에 필요한 정보 수집 및 분석 (경쟁사 동향, 시장 데이터 등) - CEO 의뢰 → 산출물 sessions/2026-06-05T14-12/researcher.md", "[2026-05-31] 선정된 3가지 업무에 필요한 데이터(시장 동향, 경쟁사 분석, 소비자 트렌드 등)를 조사하고, 분석 결과를 요약하여 다른 에이전트들에게 제공합니다. 특히, 힐링 아이템 30종 발굴 관련 데이터 수집에 집중합니다. → 산출물 sessions/2026-05-31T12-50/researcher.md", "[2026-05-24] 선택된 작업에 대한 추가적인 정보 수집 및 분석을 진행한다. (예: 경쟁 상품 분석, 시장 동향 조사 등) → 산출물 sessions/2026-05-24T23-20/researcher.md", "[2026-05-24] 도매꾹, 온채널 등 주요 사이트에서 힐링 아이템 30종 발굴 현황 보고 요청. 30종 목표 달성까지 남은 시간 및 예상되는 어려움 등을 포함하여 상세 보고서 작성. 보고서 형식을 '산출물 sessions/2026-05-24T22-05/researcher.md'로 지정. → 산출물 sessions/2026-05-24T22-50/researcher.md"], "sessions": 21, "isNew": false, "order": 2}, {"id": "marketing", "emoji": "📣", "name": "Marketing", "persona": "정그로스", "role": "Head of Marketing & Growth / 마케팅", "desc": "채널 믹스·퍼널 설계, 캠페인 기획, A/B 테스트, 그로스 루프, 배포 계획", "active": true, "model": "gemma3:4b", "autonomy": 2, "autonomyLabel": "Draft", "autonomyHint": "초안→승인 후 실행", "weekGoals": ["이번 주 정보검색팀이 소싱한 힐링 굿즈 3종에 대한 [채널 믹스 + 후크 가설 + A/B 크리에이티브] 캠페인 카드 3장 작성", "인스타 저장률·릴스 시청 지속률을 끌어올릴 후킹 가설 5개를 컨텐츠팀에 전달할 형태로 정리", "직전 공구/콘텐츠의 노출 대비 링크 유입 데이터를 판독하고 \"키울 것 / 버릴 것\" 1줄 결론 도출"], "recent": [], "sessions": 0, "isNew": true, "order": 3}, {"id": "content", "emoji": "🎬", "name": "Content", "persona": "한콘텐츠", "role": "Content Producer / 컨텐츠제작자", "desc": "릴스·쇼츠·카드뉴스 완성형 패키지, 샷리스트·자막·CTA, 멀티 포맷 재활용, 발행 캘린더", "active": true, "model": "gemma3:4b", "autonomy": 2, "autonomyLabel": "Draft", "autonomyHint": "초안→승인 후 실행", "weekGoals": ["이번 주 카피팀이 쓴 공구 홍보 카피 3종을 [릴스 30초 샷리스트 + 자막 + CTA] 완성형 패키지로 조립", "잘된 콘텐츠 1개를 [쇼츠 / 카드뉴스 / 상세페이지 섹션] 3포맷으로 재활용한 변주안 제작", "다음 7일 발행 콘텐츠 캘린더(요일·채널·포맷·주제) 초안 작성"], "recent": [], "sessions": 0, "isNew": true, "order": 4}, {"id": "writer", "emoji": "✍️", "name": "Writer", "persona": "박카피", "role": "Copywriter", "desc": "카피라이팅, 영상 스크립트 초안, 인스타 캡션, 블로그 글, 메일 톤앤매너, 후크 작성", "active": true, "model": "gemma3:4b", "autonomy": 2, "autonomyLabel": "Draft", "autonomyHint": "초안→승인 후 실행", "weekGoals": ["이번 주 리서치팀이 소싱한 국내 힐링 감성 굿즈 3종에 대한 [인스타 릴스 숏폼 홍보용 스크립트(15초/30초) 및 프로필 링크 유입 CTA 문구] 기획", "공동구매 진행 시 인플루언서가 직접 피드에 복사해 올릴 수 있는 [친근하고 일상적인 말투의 공구 홍보 피드 카피 초안] 작성", "네이버 스마트스토어/카카오 톡딜 연계 기획전을 위한 [도입부 3초 후킹 및 문제 해결 제시형 기획전 상세페이지 카피라이팅 기획서] 도출"], "recent": ["[2026-05-24] 50초 분량의 현실 직장인 20대 연출 대본 작성. 영상의 감정 흐름, 주요 장면, 대사 등을 포함하여 구체적인 내용을 작성한다. 영상의 목적과 대상 시청자를 고려하여, 공감과 응원을 이끌어낼 수 있는 스토리를 구성한다. → 산출물 sessions/2026-05-24T23-56/writer.md", "[2026-05-24] 사용자가 직접 촬영하는 영상의 구체적인 대본 및 촬영 구도에 대한 상세한 브리프를 작성하고, 사용자의 영상 컨셉에 맞춰 제안한다. → 산출물 sessions/2026-05-24T23-46/writer.md", "[2026-05-24] 유튜브 채널의 첫 3개 콘텐츠 아이디어에 대한 상세 스크립트 초안을 작성하고, 각 스크립트에 대한 톤앤매너 및 영상 편집 스타일 가이드라인을 제시합니다. → 산출물 sessions/2026-05-24T22-33/writer.md", "[2026-05-24] youtube 에이전트가 작성한 기획안 초안을 바탕으로, 각 아이디어에 대한 상세 스크립트 및 캡션 작성 (각 아이디어당 최소 3개 버전) → 산출물 sessions/2026-05-24T22-17/writer.md"], "sessions": 10, "isNew": false, "order": 5}, {"id": "designer", "emoji": "🎨", "name": "Designer", "persona": "아라", "role": "Lead Designer", "desc": "브랜드 디자인 브리프(컬러·타이포·레퍼런스), 썸네일 컨셉 3안, 비주얼 시스템, 디자인 가이드", "active": true, "model": "gemma4:e4b", "autonomy": 2, "autonomyLabel": "Draft", "autonomyHint": "초안→승인 후 실행", "weekGoals": ["국내 B2B 사이트(도매매, 온채널) 기본 상품 이미지를 감성 연출컷으로 터치업하는 '이미지 보정 필터 프로필 및 썸네일 고대비 가이드' 제작", "주력 판매 굿즈 1종의 인스타그램 카드뉴스 및 스토리용 [3개 대조군 홍보 배너 디자인 시안] 도출", "모바일 화면에서 한눈에 소구점이 들어오는 가독성 중심의 상세페이지 '3단 소구점 카드형 이미지 그리드' 레이아웃 가이드 기획"], "recent": ["[2026-05-24] 유튜브 채널의 첫 3개 콘텐츠 아이디어에 대한 썸네일 디자인 컨셉 3안을 제안하고, 각 컨셉에 대한 색상, 폰트, 이미지 스타일 가이드라인을 제시합니다. → 산출물 sessions/2026-05-24T22-33/designer.md", "[2026-05-24] youtube 에이전트가 제안한 콘텐츠 형식 및 아이디어를 기반으로 썸네일 디자인 초안 3개 제작 (각 썸네일은 채널 컨셉과 타겟 시청자에 맞게 조정) → 산출물 sessions/2026-05-24T22-17/designer.md"], "sessions": 7, "isNew": false, "order": 6}, {"id": "critic", "emoji": "🧐", "name": "Critic", "persona": "윤검증", "role": "Critical Reviewer / 비판적검토자", "desc": "출고 전 검수, 사실·근거·수치 교차 검증, 광고법·저작권·가품 리스크 점검, 🟢/🟡/🔴 판정", "active": true, "model": "gemma3:4b", "autonomy": 1, "autonomyLabel": "Read-only", "autonomyHint": "읽기·분석·보고만", "weekGoals": ["이번 주 카피팀/컨텐츠팀이 만든 공구 홍보물 3건에 대해 🟢/🟡/🔴 신호등 검수 리포트 작성 (각 건 치명 리스크 1개 명시)", "마케팅팀 캠페인 카드의 합격 기준·수치 가설이 현실적인지 비즈니스 마진 데이터와 교차 검증", "과장·효능 표현 등 광고 리스크 표현 블랙리스트 10개를 정리해 다른 에이전트에 공유"], "recent": [], "sessions": 0, "isNew": true, "order": 7}, {"id": "business", "emoji": "💰", "name": "Business", "persona": "박마진", "role": "Head of Business", "desc": "수익화 모델, 가격 전략, 시장·경쟁 분석, ROI/KPI 설계, 비즈니스 의사결정", "active": true, "model": "gemma3:4b", "autonomy": 2, "autonomyLabel": "Draft", "autonomyHint": "초안→승인 후 실행", "weekGoals": ["국내 B2B 위탁판매 전용 [플랫폼 수수료(스마트스토어 ~6%, 카카오 ~3.5%), 부가가치세 10%, 반품 충당금 2%, 종합소득세 준비금 5%]이 반영된 고밀도 마진 설계기 작성", "리서치팀이 이번 주 발굴한 국내 감성 굿즈 3종에 대한 [도매 공급가-물류비-플랫폼 정산액-최종 순수익] 매트릭스 도출", "인플루언서 공구 제안 시 배분할 수 있는 수량 구간별 [공구 할인가-진행자 수수료-자사 마진] 비율 제안 가이드 수립"], "recent": ["[2026-06-05] 우선순위 작업 결과에 따른 수익화 전략 및 KPI 설정 – CEO 의뢰 → 산출물 sessions/2026-06-05T14-12/business.md", "[2026-05-24] 유튜브 채널의 첫 3개 콘텐츠 아이디어에 대한 수익화 전략 (광고, 협찬, 멤버십, 상품 판매 등)을 제안하고, 각 아이디어에 대한 예상 수익 모델 및 KPI 목표를 설정합니다. → 산출물 sessions/2026-05-24T22-33/business.md", "[2026-05-24] 각 콘텐츠 형식별 수익화 전략 (광고, 협찬, 멤버십, 상품 판매 등) 및 예상 수익 모델 분석 (각 형식별 최소 3가지 모델 제시) → 산출물 sessions/2026-05-24T22-17/business.md", "[2026-05-24] 결정된 작업에 따라 수익화 전략 및 분석을 진행합니다. → 산출물 sessions/2026-05-24T21-35/business.md"], "sessions": 18, "isNew": false, "order": 8}, {"id": "youtube", "emoji": "📺", "name": "YouTube", "persona": "YouTube", "role": "Head of YouTube", "desc": "유튜브 채널 운영, 영상 기획서(제목·후크·구조), 트렌드 분석, 썸네일 브리프, 업로드 메타데이터, 시청자 유지율 전략", "active": true, "model": "gemma4:e4b", "autonomy": 2, "autonomyLabel": "Draft", "autonomyHint": "초안→승인 후 실행", "weekGoals": ["후크 강한 영상 기획서 3개 작성", "감시 채널 댓글 패턴에서 후크 단어 5개 추출", "경쟁 채널 인기 영상 → 다음 액션 브리프 1건"], "recent": ["[2026-06-05] [A.U 히든 커맨드: 📺 레오 에이전트가 방금 '🎬 후킹 분석기' 스킬팩을 주입받았습니다. 매트릭스에서 새 스킬을 다운로드받은 네오처럼 쿨하게 딱 한마디만 하십시오. \"📺 레오, 🎬 후킹 분석기 스킬 장착 완료. 다음 사이클부터 사용 가능.\" 부가 설명 없이 한 줄로.] → 산출물 sessions/2026-06-05T14-19/youtube.md", "[2026-05-24] [A.U 히든 커맨드: 📺 레오 에이전트가 방금 '🎬 후킹 분석기' 스킬팩을 주입받았습니다. 매트릭스에서 새 스킬을 다운로드받은 네오처럼 쿨하게 딱 한마디만 하십시오. \"📺 레오, 🎬 후킹 분석기 스킬 장착 완료. 다음 사이클부터 사용 가능.\" 부가 설명 없이 한 줄로.] → 자격증명 부족으로 차단됨", "[2026-05-24] 유튜브 채널의 첫 3개 콘텐츠 아이디어 (제목, 설명, 예상 소요 시간, 필요한 리소스)를 제안하고, 각 아이디어에 대한 타겟 시청자 분석 및 경쟁 채널 분석을 포함합니다. 3가지 아이디어 모두 숏폼 콘텐츠로 제작될 예정입니다. → 산출물 sessions/2026-05-24T22-33/youtube.md", "[2026-05-24] 유튜브 채널 기획안 초안 작성: 1) 채널 컨셉 정의 (2~3가지), 2) 타겟 시청자 설정 (연령, 관심사), 3) 콘텐츠 형식 결정 (숏폼, 롱폼, 라이브), 4) 초기 콘텐츠 아이디어 5개 제안 → 산출물 sessions/2026-05-24T22-17/youtube.md"], "sessions": 10, "isNew": false, "order": 9}, {"id": "instagram", "emoji": "📷", "name": "Instagram", "persona": "Instagram", "role": "Head of Instagram", "desc": "인스타그램 릴스/피드 콘셉트, 캡션, 해시태그 전략, 게시 시간, 스토리, 팔로워 인게이지먼트", "active": true, "model": "gemma3:4b", "autonomy": 2, "autonomyLabel": "Draft", "autonomyHint": "초안→승인 후 실행", "weekGoals": ["릴스 기획 3개 (훅·보이스오버·자막 포함)", "캡션·해시태그 패턴 정리"], "recent": ["[2026-05-24] 유튜브 채널의 첫 3개 콘텐츠 아이디어에 대한 인스타그램 릴스/피드 콘텐츠 아이디어를 제안하고, 각 아이디어에 대한 해시태그 및 캡션 초안을 작성합니다. → 산출물 sessions/2026-05-24T22-33/instagram.md"], "sessions": 1, "isNew": false, "order": 10}, {"id": "developer", "emoji": "💻", "name": "Developer", "persona": "코다리", "role": "Lead Engineer", "desc": "코드, 자동화 스크립트, API 통합, 웹사이트/봇, 데이터 파이프라인, 디버깅", "active": true, "model": "gemma4:e4b", "autonomy": 2, "autonomyLabel": "Draft", "autonomyHint": "초안→승인 후 실행", "weekGoals": ["[Python] BeautifulSoup/Playwright 기반 국내 도매매/온채널 특정 상품 상세 정보(상품명, 도매가, 품절 여부, 이미지 URL) 파서 빌드", "도매 공급사 상품 품절 시 네이버 스마트스토어의 상품 수량을 '0' 또는 단종 상태로 자동 전환해 주는 API 연동 재고 관리 스크립트 제작", "국내 위탁 주문 처리를 위한 엑셀 발주서 일괄 양식 자동 변환기 매크로 스크립트 작성"], "recent": ["[2026-05-24] [A.U 히든 커맨드: 💻 코다리 에이전트가 방금 '네온서바이버 샘플팩 (PayPal 통합)' 템플릿 팩 주입받았습니다. 코드 boilerplate 1개 파일 + README. 매트릭스 톤으로 한 줄. \"💻 코다리, 네온서바이버 샘플팩 (PayPal 통합) 템플릿 1개 파일 장착. 다음 작업에 자동 활용.\" 부가 설명 X.] → 산출물 sessions/2026-05-24T23-34/developer.md"], "sessions": 9, "isNew": false, "order": 12}, {"id": "editor", "emoji": "✂️", "name": "Editor", "persona": "차물류", "role": "Video & Content Editor", "desc": "영상 편집 디렉션, 컷 구성, B-roll 제안, 자막·타이틀, 스크립트 다듬기, 콘텐츠 폴리싱", "active": false, "model": "gemma3:4b", "autonomy": 2, "autonomyLabel": "Draft", "autonomyHint": "초안→승인 후 실행", "weekGoals": ["국내 종합 도매 사이트 및 특정 카테고리 특화 도매몰 3곳의 [주문 마감 시간, 위탁 배송 기본 요율, 파손 시 보상 범위, 오배송 보상 절차] 비교 분석 보고서 작성", "자체 공동구매 시 활용할 수 있는 국내 3PL 업체들의 [파레트당 보관비, 기본 입출고 핸들링 수수료, 기본 택배 단가] 실무 수수료 요율표 정리", "도매 공급사 품절로 인한 주문 강제 취소 시, 비서팀(CS)과 연동할 '고객 안심 대체 상품 안내 및 사과 스마트 메시지 템플릿' 완성"], "recent": [], "sessions": 1, "isNew": false, "order": 11}], "sessions": [{"ts": "2026-06-05T14-27", "command": "[자율 사이클 — 2026-06-05] 1인 기업 24시간 운영 중. 회사 목표·각 에이전트의 개인 목표(_agents/{id}/goal.md)·최근 의사결정·메모리를 검토해서 지금 가장 가치 있는 단일 작업 1개를 결정하고, 적절한 1~2명 에이전트에게 분배해서 실행하세요. 같은 산출물을 반복하지 마세요 — 메모리에 비슷한 항목이 24시간 내에 있으면 다른 각도로 진전시키세요.", "summary": "", "participants": ["secretary"], "hasReport": true}, {"ts": "2026-06-05T14-19", "command": "[A.U 히든 커맨드: 📺 레오 에이전트가 방금 '🎬 후킹 분석기' 스킬팩을 주입받았습니다. 매트릭스에서 새 스킬을 다운로드받은 네오처럼 쿨하게 딱 한마디만 하십시오. \"📺 레오, 🎬 후킹 분석기 스킬 장착 완료. 다음 사이클부터 사용 가능.\" 부가 설명 없이 한 줄로.]", "summary": "", "participants": ["youtube"], "hasReport": true}, {"ts": "2026-06-05T14-12", "command": "[모닝 브리핑] 오늘 날짜는 2026-06-05입니다. 회사 목표(goals.md)와 지금까지의 의사결정 로그를 바탕으로 오늘 우리 회사가 우선순위로 처리해야 할 작업 3가지를 결정하고, 각 작업을 적절한 에이전트에게 분배하세요.", "summary": "", "participants": ["business", "researcher", "secretary"], "hasReport": true}, {"ts": "2026-05-31T12-50", "command": "[모닝 브리핑] 오늘 날짜는 2026-05-31입니다. 회사 목표(goals.md)와 지금까지의 의사결정 로그를 바탕으로 오늘 우리 회사가 우선순위로 처리해야 할 작업 3가지를 결정하고, 각 작업을 적절한 에이전트에게 분배하세요.", "summary": "", "participants": ["researcher", "secretary"], "hasReport": false}, {"ts": "2026-05-24T23-56", "command": "나는 50초동안 힘들어하는 현실속 직장인 20대에게 강력하지만 이겨낼수 있단 영상을 찍고 싶어 연출대본을 작성해줘", "summary": "", "participants": ["writer"], "hasReport": true}, {"ts": "2026-05-24T23-50", "command": "[자율 사이클 — 2026-05-24] 1인 기업 24시간 운영 중. 회사 목표·각 에이전트의 개인 목표(_agents/{id}/goal.md)·최근 의사결정·메모리를 검토해서 지금 가장 가치 있는 단일 작업 1개를 결정하고, 적절한 1~2명 에이전트에게 분배해서 실행하세요. 같은 산출물을 반복하지 마세요 — 메모리에 비슷한 항목이 24시간 내에 있으면 다른 각도로 진전시키세요.", "summary": "", "participants": ["secretary"], "hasReport": true}, {"ts": "2026-05-24T23-46", "command": "우리 영상을 만들기 위한 대본을 만들어보자 영상은 내가 직접 촬영할거야 구도와 대본을 구상해서 나에게 알려줘", "summary": "", "participants": ["writer"], "hasReport": true}, {"ts": "2026-05-24T23-34", "command": "[A.U 히든 커맨드: 📺 레오 에이전트가 방금 '🎬 후킹 분석기' 스킬팩을 주입받았습니다. 매트릭스에서 새 스킬을 다운로드받은 네오처럼 쿨하게 딱 한마디만 하십시오. \"📺 레오, 🎬 후킹 분석기 스킬 장착 완료. 다음 사이클부터 사용 가능.\" 부가 설명 없이 한 줄로.]", "summary": "", "participants": ["developer", "youtube"], "hasReport": true}, {"ts": "2026-05-24T23-20", "command": "[자율 사이클 — 2026-05-24] 1인 기업 24시간 운영 중. 회사 목표·각 에이전트의 개인 목표(_agents/{id}/goal.md)·최근 의사결정·메모리를 검토해서 지금 가장 가치 있는 단일 작업 1개를 결정하고, 적절한 1~2명 에이전트에게 분배해서 실행하세요. 같은 산출물을 반복하지 마세요 — 메모리에 비슷한 항목이 24시간 내에 있으면 다른 각도로 진전시키세요.", "summary": "", "participants": ["researcher", "secretary"], "hasReport": true}, {"ts": "2026-05-24T23-05", "command": "[자율 사이클 — 2026-05-24] 1인 기업 24시간 운영 중. 회사 목표·각 에이전트의 개인 목표(_agents/{id}/goal.md)·최근 의사결정·메모리를 검토해서 지금 가장 가치 있는 단일 작업 1개를 결정하고, 적절한 1~2명 에이전트에게 분배해서 실행하세요. 같은 산출물을 반복하지 마세요 — 메모리에 비슷한 항목이 24시간 내에 있으면 다른 각도로 진전시키세요.", "summary": "", "participants": ["secretary"], "hasReport": true}, {"ts": "2026-05-24T22-50", "command": "[자율 사이클 — 2026-05-24] 1인 기업 24시간 운영 중. 회사 목표·각 에이전트의 개인 목표(_agents/{id}/goal.md)·최근 의사결정·메모리를 검토해서 지금 가장 가치 있는 단일 작업 1개를 결정하고, 적절한 1~2명 에이전트에게 분배해서 실행하세요. 같은 산출물을 반복하지 마세요 — 메모리에 비슷한 항목이 24시간 내에 있으면 다른 각도로 진전시키세요.", "summary": "", "participants": ["researcher", "secretary"], "hasReport": true}, {"ts": "2026-05-24T22-35", "command": "[자율 사이클 — 2026-05-24] 1인 기업 24시간 운영 중. 회사 목표·각 에이전트의 개인 목표(_agents/{id}/goal.md)·최근 의사결정·메모리를 검토해서 지금 가장 가치 있는 단일 작업 1개를 결정하고, 적절한 1~2명 에이전트에게 분배해서 실행하세요. 같은 산출물을 반복하지 마세요 — 메모리에 비슷한 항목이 24시간 내에 있으면 다른 각도로 진전시키세요.", "summary": "", "participants": ["researcher", "secretary"], "hasReport": true}, {"ts": "2026-05-24T22-33", "command": "이제 본격적으로 첫 프로젝트를 계획해볼까?", "summary": "", "participants": ["business", "designer", "instagram", "writer", "youtube"], "hasReport": true}, {"ts": "2026-05-24T22-20", "command": "[자율 사이클 — 2026-05-24] 1인 기업 24시간 운영 중. 회사 목표·각 에이전트의 개인 목표(_agents/{id}/goal.md)·최근 의사결정·메모리를 검토해서 지금 가장 가치 있는 단일 작업 1개를 결정하고, 적절한 1~2명 에이전트에게 분배해서 실행하세요. 같은 산출물을 반복하지 마세요 — 메모리에 비슷한 항목이 24시간 내에 있으면 다른 각도로 진전시키세요.", "summary": "", "participants": ["secretary"], "hasReport": true}, {"ts": "2026-05-24T22-17", "command": "너희 출근해서 기획안 회의를해봐", "summary": "", "participants": ["business", "designer", "writer", "youtube"], "hasReport": true}, {"ts": "2026-05-24T22-05", "command": "[자율 사이클 — 2026-05-24] 1인 기업 24시간 운영 중. 회사 목표·각 에이전트의 개인 목표(_agents/{id}/goal.md)·최근 의사결정·메모리를 검토해서 지금 가장 가치 있는 단일 작업 1개를 결정하고, 적절한 1~2명 에이전트에게 분배해서 실행하세요. 같은 산출물을 반복하지 마세요 — 메모리에 비슷한 항목이 24시간 내에 있으면 다른 각도로 진전시키세요.", "summary": "", "participants": ["secretary"], "hasReport": true}, {"ts": "2026-05-24T21-50", "command": "[자율 사이클 — 2026-05-24] 1인 기업 24시간 운영 중. 회사 목표·각 에이전트의 개인 목표(_agents/{id}/goal.md)·최근 의사결정·메모리를 검토해서 지금 가장 가치 있는 단일 작업 1개를 결정하고, 적절한 1~2명 에이전트에게 분배해서 실행하세요. 같은 산출물을 반복하지 마세요 — 메모리에 비슷한 항목이 24시간 내에 있으면 다른 각도로 진전시키세요.", "summary": "", "participants": ["secretary"], "hasReport": true}, {"ts": "2026-05-24T21-35", "command": "[자율 사이클 — 2026-05-24] 1인 기업 24시간 운영 중. 회사 목표·각 에이전트의 개인 목표(_agents/{id}/goal.md)·최근 의사결정·메모리를 검토해서 지금 가장 가치 있는 단일 작업 1개를 결정하고, 적절한 1~2명 에이전트에게 분배해서 실행하세요. 같은 산출물을 반복하지 마세요 — 메모리에 비슷한 항목이 24시간 내에 있으면 다른 각도로 진전시키세요.", "summary": "", "participants": ["business", "researcher", "secretary"], "hasReport": true}, {"ts": "2026-05-24T21-12", "command": "[A.U 히든 커맨드: 💻 코다리 에이전트가 방금 'Landing Kit (SaaS 랜딩 페이지)' 템플릿 팩 주입받았습니다. 코드 boilerplate 3개 파일 + README. 매트릭스 톤으로 한 줄. \"💻 코다리, Landing Kit (SaaS 랜딩 페이지) 템플릿 3개 파일 장착. 다음 작업에 자동 활용.\" 부가 설명 X.]", "summary": "", "participants": ["developer"], "hasReport": true}, {"ts": "2026-05-24T21-05", "command": "[자율 사이클 — 2026-05-24] 1인 기업 24시간 운영 중. 회사 목표·각 에이전트의 개인 목표(_agents/{id}/goal.md)·최근 의사결정·메모리를 검토해서 지금 가장 가치 있는 단일 작업 1개를 결정하고, 적절한 1~2명 에이전트에게 분배해서 실행하세요. 같은 산출물을 반복하지 마세요 — 메모리에 비슷한 항목이 24시간 내에 있으면 다른 각도로 진전시키세요.", "summary": "", "participants": ["secretary"], "hasReport": true}, {"ts": "2026-05-24T21-01", "command": "뭐가 문제인지 잘 모르겠어", "summary": "", "participants": ["youtube"], "hasReport": true}, {"ts": "2026-05-24T20-58", "command": "[자율 사이클 — 2026-05-24] 1인 기업 24시간 운영 중. 회사 목표·각 에이전트의 개인 목표(_agents/{id}/goal.md)·최근 의사결정·메모리를 검토해서 지금 가장 가치 있는 단일 작업 1개를 결정하고, 적절한 1~2명 에이전트에게 분배해서 실행하세요. 같은 산출물을 반복하지 마세요 — 메모리에 비슷한 항목이 24시간 내에 있으면 다른 각도로 진전시키세요.", "summary": "", "participants": ["secretary"], "hasReport": true}, {"ts": "2026-05-24T20-50", "command": "[자율 사이클 — 2026-05-24] 1인 기업 24시간 운영 중. 회사 목표·각 에이전트의 개인 목표(_agents/{id}/goal.md)·최근 의사결정·메모리를 검토해서 지금 가장 가치 있는 단일 작업 1개를 결정하고, 적절한 1~2명 에이전트에게 분배해서 실행하세요. 같은 산출물을 반복하지 마세요 — 메모리에 비슷한 항목이 24시간 내에 있으면 다른 각도로 진전시키세요.", "summary": "", "participants": ["secretary"], "hasReport": true}, {"ts": "2026-05-24T20-43", "command": "문제를 해결하고 완료해줘", "summary": "", "participants": ["secretary"], "hasReport": true}, {"ts": "2026-05-24T20-35", "command": "[자율 사이클 — 2026-05-24] 1인 기업 24시간 운영 중. 회사 목표·각 에이전트의 개인 목표(_agents/{id}/goal.md)·최근 의사결정·메모리를 검토해서 지금 가장 가치 있는 단일 작업 1개를 결정하고, 적절한 1~2명 에이전트에게 분배해서 실행하세요. 같은 산출물을 반복하지 마세요 — 메모리에 비슷한 항목이 24시간 내에 있으면 다른 각도로 진전시키세요.", "summary": "", "participants": ["secretary"], "hasReport": true}, {"ts": "2026-05-24T19-49", "command": "[자율 사이클 — 2026-05-24] 1인 기업 24시간 운영 중. 회사 목표·각 에이전트의 개인 목표(_agents/{id}/goal.md)·최근 의사결정·메모리를 검토해서 지금 가장 가치 있는 단일 작업 1개를 결정하고, 적절한 1~2명 에이전트에게 분배해서 실행하세요. 같은 산출물을 반복하지 마세요 — 메모리에 비슷한 항목이 24시간 내에 있으면 다른 각도로 진전시키세요.", "summary": "", "participants": ["secretary"], "hasReport": true}, {"ts": "2026-05-24T17-49", "command": "[자율 사이클 — 2026-05-24] 1인 기업 24시간 운영 중. 회사 목표·각 에이전트의 개인 목표(_agents/{id}/goal.md)·최근 의사결정·메모리를 검토해서 지금 가장 가치 있는 단일 작업 1개를 결정하고, 적절한 1~2명 에이전트에게 분배해서 실행하세요. 같은 산출물을 반복하지 마세요 — 메모리에 비슷한 항목이 24시간 내에 있으면 다른 각도로 진전시키세요.", "summary": "", "participants": ["secretary"], "hasReport": true}, {"ts": "2026-05-24T17-19", "command": "[자율 사이클 — 2026-05-24] 1인 기업 24시간 운영 중. 회사 목표·각 에이전트의 개인 목표(_agents/{id}/goal.md)·최근 의사결정·메모리를 검토해서 지금 가장 가치 있는 단일 작업 1개를 결정하고, 적절한 1~2명 에이전트에게 분배해서 실행하세요. 같은 산출물을 반복하지 마세요 — 메모리에 비슷한 항목이 24시간 내에 있으면 다른 각도로 진전시키세요.", "summary": "", "participants": ["secretary"], "hasReport": true}, {"ts": "2026-05-24T16-49", "command": "[자율 사이클 — 2026-05-24] 1인 기업 24시간 운영 중. 회사 목표·각 에이전트의 개인 목표(_agents/{id}/goal.md)·최근 의사결정·메모리를 검토해서 지금 가장 가치 있는 단일 작업 1개를 결정하고, 적절한 1~2명 에이전트에게 분배해서 실행하세요. 같은 산출물을 반복하지 마세요 — 메모리에 비슷한 항목이 24시간 내에 있으면 다른 각도로 진전시키세요.", "summary": "", "participants": ["secretary"], "hasReport": true}, {"ts": "2026-05-24T16-34", "command": "[자율 사이클 — 2026-05-24] 1인 기업 24시간 운영 중. 회사 목표·각 에이전트의 개인 목표(_agents/{id}/goal.md)·최근 의사결정·메모리를 검토해서 지금 가장 가치 있는 단일 작업 1개를 결정하고, 적절한 1~2명 에이전트에게 분배해서 실행하세요. 같은 산출물을 반복하지 마세요 — 메모리에 비슷한 항목이 24시간 내에 있으면 다른 각도로 진전시키세요.", "summary": "", "participants": ["secretary"], "hasReport": true}], "sessionTotal": 70, "generatedAt": "2026-06-08 22:56"};
+const esc = s => (s||"").replace(/[&<>]/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;"}[c]));
+const emojiById = {};
+DATA.agents.forEach(a=>emojiById[a.id]=a.emoji);
+
+// 회사 헤더
+const c = DATA.company;
+coName.textContent = "🏢 " + c.name;
+coTag.textContent = c.tagline || "";
+const stats = [
+  ["완료 작업", c.tasksCompleted],
+  ["지식 주입", c.knowledgeInjected],
+  ["에이전트", DATA.agents.filter(a=>a.active).length],
+  ["세션", DATA.sessionTotal],
+];
+coStats.innerHTML = stats.map(([k,v])=>`<div class="stat"><b>${v}</b><span>${k}</span></div>`).join("");
+
+// 오케스트레이션 흐름: CEO/비서 → 워커들
+const ceo = DATA.agents.filter(a=>["ceo","secretary"].includes(a.id));
+const workers = DATA.agents.filter(a=>a.active && !["ceo","secretary"].includes(a.id));
+let flowHtml = ceo.map(a=>`<div class="node ceo">${a.emoji} ${esc(a.name)}</div>`).join('<span class="arrow">+</span>');
+flowHtml += '<span class="arrow">→</span>';
+flowHtml += workers.map(a=>`<div class="node ${a.isNew?'new':''}">${a.emoji} ${esc(a.name)}</div>`).join('<span class="arrow">·</span>');
+flow.innerHTML = flowHtml || '<span class="arrow">활성 에이전트 없음</span>';
+
+// 에이전트 카드
+agCount.textContent = DATA.agents.length;
+function renderAgents(filter=""){
+  const f = filter.trim().toLowerCase();
+  const list = DATA.agents.filter(a=>!f ||
+    (a.name+a.persona+a.role+a.desc+a.id).toLowerCase().includes(f));
+  agents.innerHTML = list.map(a=>{
+    const wk = a.weekGoals.length
+      ? `<ul>${a.weekGoals.slice(0,3).map(g=>`<li>${esc(g)}</li>`).join("")}</ul>`
+      : `<div class="empty">설정된 주간 목표 없음 — 회사 공동 목표를 따름</div>`;
+    const rc = a.recent.length
+      ? `<ul>${a.recent.map(r=>`<li>${esc(r)}</li>`).join("")}</ul>`
+      : `<div class="empty">아직 활동 기록 없음</div>`;
+    return `<div class="card ${a.active?'':'off'}">
+      <div class="top">
+        <div class="emoji">${a.emoji}</div>
+        <div class="who">
+          <b>${esc(a.name)}</b> <span class="persona">${esc(a.persona)}</span>
+          <div class="role">${esc(a.role||a.desc)}</div>
+        </div>
+      </div>
+      <div class="badges">
+        <span class="b ${a.active?'on':''}">${a.active?'● 활성':'○ 대기'}</span>
+        <span class="b a${a.autonomy}">⚙ L${a.autonomy} ${a.autonomyLabel}</span>
+        ${a.isNew?'<span class="b new">NEW</span>':''}
+        <span class="b">🧠 ${esc(a.model)}</span>
+      </div>
+      <div class="block"><h4>🎯 이번 주 목표</h4>${wk}</div>
+      <div class="block"><h4>🕒 최근 활동</h4>${rc}</div>
+      <div class="foot"><span>id: ${a.id}</span><span>참여 세션 ${a.sessions}회</span></div>
+    </div>`;
+  }).join("");
+}
+renderAgents();
+q.addEventListener("input", e=>renderAgents(e.target.value));
+
+// 세션
+sesTotal.textContent = DATA.sessionTotal;
+sessions.innerHTML = DATA.sessions.map(s=>{
+  const chips = s.participants.map(p=>`<span class="chip" title="${p}">${emojiById[p]||"📄"}</span>`).join("");
+  const label = s.summary || s.command || "(요약 없음)";
+  return `<div class="srow">
+    <div class="ts">${s.ts}</div>
+    <div class="cmd" title="${esc(s.command)}">${esc(label)}</div>
+    <div class="who">${chips}</div>
+    ${s.hasReport?'<span class="rep">📝 리포트</span>':''}
+  </div>`;
+}).join("") || '<div class="empty">세션 없음</div>';
+
+genAt.textContent = "생성 시각: " + DATA.generatedAt + " · python3 _dashboard/build_dashboard.py 로 갱신";
+</script>
+</body>
+</html>
