@@ -8,9 +8,11 @@
 import json
 import os
 import shutil
+import threading
 import time
 import urllib.error
 import urllib.request
+import webbrowser
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 
 ROOT = os.path.dirname(os.path.abspath(__file__))
@@ -239,7 +241,8 @@ def main():
     print("🎬 크리에이터 에이전트 시작!")
     print("   모델: %s  (Ollama: %s)" % (MODEL, OLLAMA_URL))
     print("   브라우저에서 열기 → http://localhost:%d" % PORT)
-    print("   종료: Ctrl+C")
+    print("   종료: Ctrl+C (이 창을 닫으면 에이전트도 꺼집니다)")
+    threading.Timer(1.0, lambda: webbrowser.open("http://localhost:%d" % PORT)).start()
     try:
         server.serve_forever()
     except KeyboardInterrupt:

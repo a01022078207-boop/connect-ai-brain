@@ -3,21 +3,20 @@
 로컬 Ollama(`gemma4:12b`)를 두뇌로 쓰는 **1인 콘텐츠 크리에이터 파트너**.
 설치할 라이브러리 없음 — Python과 Ollama만 있으면 됩니다.
 
-## 실행 방법
+## 실행 방법 (가장 쉬운 길)
 
-```bash
-# 1. (처음 한 번) 모델 준비 — 이미 받았다면 생략
-ollama pull gemma4:12b
+**준비물 (처음 한 번):**
+1. [Python 설치](https://www.python.org/downloads/) — 설치 화면에서 **"Add Python to PATH" 체크 필수**
+2. [Ollama 설치](https://ollama.com/download) 후 모델 받기: `ollama pull gemma4:12b`
 
-# 2. 에이전트 시작
-python agent.py
+**실행:**
+- 이 폴더의 **`start.bat` 더블클릭** (Windows) → 브라우저가 자동으로 열립니다
+- macOS/Linux: `sh start.sh`
 
-# 3. 브라우저에서 열기
-#    → http://localhost:8800
-```
+검은 터미널 창이 함께 떠 있는 동안만 에이전트가 동작합니다. (창을 닫으면 종료)
 
-> Windows에서 `python`이 안 되면 `py agent.py`로 실행하세요.
-> Ollama 앱이 켜져 있어야 합니다 (보통 자동 실행됨).
+**코드 받기 (git 없이):**
+GitHub 저장소 페이지 → 초록색 `Code` 버튼 → `Download ZIP` → 압축 풀기 → `start.bat` 더블클릭.
 
 ## 기능
 
