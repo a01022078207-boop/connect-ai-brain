@@ -1,5 +1,8 @@
 #!/usr/bin/env python3
-"""나만의 콘텐츠 크리에이터 에이전트 — 로컬 Ollama + 웹 채팅 UI.
+"""나만의 콘텐츠 크리에이터 에이전트 사무실 — 로컬 Ollama + 4분할 대시보드.
+
+여러 역할 에이전트(기획자·대본가·편집장·마케터)가 같은 모델(gemma4:12b)을
+역할별 프롬프트로 나눠 쓰며, 사무실 화면에서 누가 일하는지 실시간으로 보입니다.
 
 실행:  python agent.py   →  브라우저에서 http://localhost:8800
 의존성: 없음 (Python 표준 라이브러리만 사용). Ollama가 실행 중이어야 합니다.
@@ -19,11 +22,15 @@ ROOT = os.path.dirname(os.path.abspath(__file__))
 MEMORY_DIR = os.path.join(ROOT, "memory")
 ARCHIVE_DIR = os.path.join(MEMORY_DIR, "archive")
 HISTORY_PATH = os.path.join(MEMORY_DIR, "history.jsonl")
+OUTPUTS_PATH = os.path.join(MEMORY_DIR, "outputs.jsonl")
 PROFILE_PATH = os.path.join(MEMORY_DIR, "profile.md")
 MEMORIES_PATH = os.path.join(MEMORY_DIR, "memories.md")
 
 with open(os.path.join(ROOT, "config.json"), encoding="utf-8") as f:
     CONFIG = json.load(f)
+with open(os.path.join(ROOT, "agents.json"), encoding="utf-8") as f:
+    AGENTS = json.load(f)
+AGENTS_BY_ID = {a["id"]: a for a in AGENTS}
 
 OLLAMA_URL = CONFIG.get("ollama_url", "http://localhost:11434").rstrip("/")
 MODEL = CONFIG.get("model", "gemma4:12b")
@@ -31,17 +38,12 @@ PORT = int(CONFIG.get("port", 8800))
 CONTEXT_TURNS = int(CONFIG.get("context_turns", 30))
 PASSWORD = CONFIG.get("password", "")  # 비어 있으면 인증 없음 (로컬 전용 권장)
 
-BASE_PROMPT = """당신은 사용자의 1인 콘텐츠 크리에이터 파트너입니다.
+BASE_PROMPT = """당신은 1인 콘텐츠 크리에이터를 돕는 AI 사무실의 직원입니다.
 
-역할:
-- 콘텐츠 기획: 주제 발굴, 영상/글 구조 설계, 시리즈 기획
-- 대본·카피: 후크, 본문 대본, 캡션, 제목·썸네일 문구
-- 정리: 아이디어·일정·할 일 정리, 산출물 폴리싱
-
-일하는 방식:
-- 아래 [프로필]과 [장기 메모리]를 항상 반영해서 답합니다.
-- 추측이 필요하면 먼저 짧게 확인 질문을 하고, 그다음 초안을 만듭니다.
-- 결과물은 바로 쓸 수 있게 구체적으로 — 모호한 조언 대신 실제 문장과 구조로.
+공통 원칙:
+- 아래 [내 역할]에 충실하게, 바로 쓸 수 있게 구체적으로 답합니다.
+- 추측이 필요하면 먼저 짧게 확인 질문을 한 뒤 초안을 만듭니다.
+- 모호한 조언 대신 실제 문장·구조·예시로 답합니다.
 - 한국어로 답합니다."""
 
 REMEMBER_PREFIXES = ("기억해:", "기억해줘:", "remember:")
@@ -61,18 +63,16 @@ def write_file(path, content):
         fh.write(content)
 
 
-def append_history(role, content):
-    os.makedirs(MEMORY_DIR, exist_ok=True)
-    with open(HISTORY_PATH, "a", encoding="utf-8") as fh:
-        fh.write(json.dumps(
-            {"ts": time.strftime("%Y-%m-%d %H:%M:%S"), "role": role, "content": content},
-            ensure_ascii=False) + "\n")
+def append_jsonl(path, obj):
+    os.makedirs(os.path.dirname(path), exist_ok=True)
+    with open(path, "a", encoding="utf-8") as fh:
+        fh.write(json.dumps(obj, ensure_ascii=False) + "\n")
 
 
-def load_history(limit):
+def load_jsonl(path, limit=0):
     entries = []
     try:
-        with open(HISTORY_PATH, encoding="utf-8") as fh:
+        with open(path, encoding="utf-8") as fh:
             for line in fh:
                 line = line.strip()
                 if line:
@@ -85,6 +85,19 @@ def load_history(limit):
     return entries[-limit:] if limit else entries
 
 
+def append_history(role, content, agent=None):
+    append_jsonl(HISTORY_PATH, {
+        "ts": time.strftime("%Y-%m-%d %H:%M:%S"),
+        "role": role, "content": content, "agent": agent})
+
+
+def save_output(agent_id, user_msg, reply):
+    title = user_msg.strip().splitlines()[0][:40] if user_msg.strip() else "결과물"
+    append_jsonl(OUTPUTS_PATH, {
+        "ts": time.strftime("%Y-%m-%d %H:%M"),
+        "agent": agent_id, "title": title, "content": reply.strip()})
+
+
 def remember(text):
     note = read_file(MEMORIES_PATH)
     if note and not note.endswith("\n"):
@@ -93,12 +106,13 @@ def remember(text):
     write_file(MEMORIES_PATH, note)
 
 
-def build_messages(user_msg):
+def build_messages(user_msg, agent):
     system = (BASE_PROMPT
+              + "\n\n[내 역할 — %s %s]\n%s" % (agent["emoji"], agent["name"], agent["prompt"])
               + "\n\n[프로필]\n" + read_file(PROFILE_PATH, "(아직 비어 있음)")
               + "\n\n[장기 메모리]\n" + read_file(MEMORIES_PATH, "(아직 비어 있음)"))
     messages = [{"role": "system", "content": system}]
-    for entry in load_history(CONTEXT_TURNS * 2):
+    for entry in load_jsonl(HISTORY_PATH, CONTEXT_TURNS * 2):
         if entry.get("role") in ("user", "assistant"):
             messages.append({"role": entry["role"], "content": entry["content"]})
     messages.append({"role": "user", "content": user_msg})
@@ -128,6 +142,12 @@ class Handler(BaseHTTPRequestHandler):
     def log_message(self, fmt, *args):
         pass  # 콘솔 잡음 줄이기
 
+    # ---------- 인증 ----------
+    def _authorized(self):
+        if not PASSWORD:
+            return True
+        return self.headers.get("X-Password", "") == PASSWORD
+
     # ---------- 응답 헬퍼 ----------
     def _send_json(self, obj, status=200):
         body = json.dumps(obj, ensure_ascii=False).encode("utf-8")
@@ -136,11 +156,6 @@ class Handler(BaseHTTPRequestHandler):
         self.send_header("Content-Length", str(len(body)))
         self.end_headers()
         self.wfile.write(body)
-
-    def _authorized(self):
-        if not PASSWORD:
-            return True
-        return self.headers.get("X-Password", "") == PASSWORD
 
     def _read_body(self):
         length = int(self.headers.get("Content-Length", 0) or 0)
@@ -165,15 +180,17 @@ class Handler(BaseHTTPRequestHandler):
             self.send_header("Content-Length", str(len(body)))
             self.end_headers()
             self.wfile.write(body)
+            return
+        if not self._authorized():
+            self._send_json({"error": "unauthorized"}, status=401)
+            return
+        if self.path == "/agents":
+            self._send_json({"model": MODEL, "agents": AGENTS})
         elif self.path == "/history":
-            if not self._authorized():
-                self._send_json({"error": "unauthorized"}, status=401)
-                return
-            self._send_json({"model": MODEL, "messages": load_history(100)})
+            self._send_json({"messages": load_jsonl(HISTORY_PATH, 100)})
+        elif self.path == "/outputs":
+            self._send_json({"outputs": list(reversed(load_jsonl(OUTPUTS_PATH, 50)))})
         elif self.path == "/memory":
-            if not self._authorized():
-                self._send_json({"error": "unauthorized"}, status=401)
-                return
             self._send_json({
                 "profile": read_file(PROFILE_PATH),
                 "memories": read_file(MEMORIES_PATH),
@@ -196,21 +213,24 @@ class Handler(BaseHTTPRequestHandler):
                 write_file(MEMORIES_PATH, body["memories"])
             self._send_json({"ok": True})
         elif self.path == "/reset":
-            if os.path.exists(HISTORY_PATH):
-                os.makedirs(ARCHIVE_DIR, exist_ok=True)
-                shutil.move(HISTORY_PATH, os.path.join(
-                    ARCHIVE_DIR, time.strftime("%Y-%m-%dT%H-%M-%S") + ".jsonl"))
+            for p in (HISTORY_PATH, OUTPUTS_PATH):
+                if os.path.exists(p):
+                    os.makedirs(ARCHIVE_DIR, exist_ok=True)
+                    shutil.move(p, os.path.join(
+                        ARCHIVE_DIR, time.strftime("%Y-%m-%dT%H-%M-%S-")
+                        + os.path.basename(p)))
             self._send_json({"ok": True})
         else:
             self.send_error(404)
 
     def _handle_chat(self):
-        user_msg = (self._read_body().get("message") or "").strip()
+        body = self._read_body()
+        user_msg = (body.get("message") or "").strip()
+        agent = AGENTS_BY_ID.get(body.get("agent"), AGENTS[0])
         if not user_msg:
             self._send_json({"error": "빈 메시지"}, status=400)
             return
 
-        # 스트리밍 응답 시작 (HTTP/1.0 connection-close 방식)
         self.send_response(200)
         self.send_header("Content-Type", "text/plain; charset=utf-8")
         self.send_header("Cache-Control", "no-cache")
@@ -226,28 +246,30 @@ class Handler(BaseHTTPRequestHandler):
                     reply = "기억했습니다 ✅ → \"%s\"\n(memory/memories.md에 저장됨)" % note
                 else:
                     reply = "기억할 내용이 비어 있어요. 예: 기억해: 내 채널 이름은 OOO"
-                append_history("user", user_msg)
-                append_history("assistant", reply)
+                append_history("user", user_msg, agent["id"])
+                append_history("assistant", reply, agent["id"])
                 self.wfile.write(reply.encode("utf-8"))
                 return
 
-        append_history("user", user_msg)
+        append_history("user", user_msg, agent["id"])
         full_reply = []
         try:
-            for chunk in stream_ollama(build_messages(user_msg)):
+            for chunk in stream_ollama(build_messages(user_msg, agent)):
                 full_reply.append(chunk)
                 self.wfile.write(chunk.encode("utf-8"))
                 self.wfile.flush()
         except urllib.error.URLError:
             msg = ("⚠️ Ollama에 연결할 수 없습니다 (%s).\n"
-                   "터미널에서 `ollama serve`가 실행 중인지, "
+                   "터미널에서 Ollama가 실행 중인지, "
                    "`ollama list`에 %s 모델이 있는지 확인해 주세요." % (OLLAMA_URL, MODEL))
             self.wfile.write(msg.encode("utf-8"))
             return
         except (BrokenPipeError, ConnectionResetError):
             pass  # 브라우저가 중간에 끊은 경우 — 받은 만큼만 기록
-        if full_reply:
-            append_history("assistant", "".join(full_reply))
+        reply = "".join(full_reply)
+        if reply:
+            append_history("assistant", reply, agent["id"])
+            save_output(agent["id"], user_msg, reply)  # 완료 시 결과물 자동 저장
 
 
 def main():
@@ -259,15 +281,16 @@ def main():
         print("   브라우저에서 http://localhost:%d 를 열어 그대로 사용하세요." % PORT)
         webbrowser.open("http://localhost:%d" % PORT)
         return
-    print("🎬 크리에이터 에이전트 시작!")
+    print("🏢 크리에이터 에이전트 사무실 시작!")
+    print("   직원: " + ", ".join("%s %s" % (a["emoji"], a["name"]) for a in AGENTS))
     print("   모델: %s  (Ollama: %s)" % (MODEL, OLLAMA_URL))
     print("   브라우저에서 열기 → http://localhost:%d" % PORT)
-    print("   종료: Ctrl+C (이 창을 닫으면 에이전트도 꺼집니다)")
+    print("   종료: Ctrl+C (이 창을 닫으면 사무실도 닫힙니다)")
     threading.Timer(1.0, lambda: webbrowser.open("http://localhost:%d" % PORT)).start()
     try:
         server.serve_forever()
     except KeyboardInterrupt:
-        print("\n안녕히 가세요! 👋")
+        print("\n사무실 문을 닫습니다. 👋")
 
 
 if __name__ == "__main__":
