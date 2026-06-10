@@ -29,6 +29,7 @@ OLLAMA_URL = CONFIG.get("ollama_url", "http://localhost:11434").rstrip("/")
 MODEL = CONFIG.get("model", "gemma4:12b")
 PORT = int(CONFIG.get("port", 8800))
 CONTEXT_TURNS = int(CONFIG.get("context_turns", 30))
+PASSWORD = CONFIG.get("password", "")  # 비어 있으면 인증 없음 (로컬 전용 권장)
 
 BASE_PROMPT = """당신은 사용자의 1인 콘텐츠 크리에이터 파트너입니다.
 
@@ -136,6 +137,11 @@ class Handler(BaseHTTPRequestHandler):
         self.end_headers()
         self.wfile.write(body)
 
+    def _authorized(self):
+        if not PASSWORD:
+            return True
+        return self.headers.get("X-Password", "") == PASSWORD
+
     def _read_body(self):
         length = int(self.headers.get("Content-Length", 0) or 0)
         if not length:
@@ -160,8 +166,14 @@ class Handler(BaseHTTPRequestHandler):
             self.end_headers()
             self.wfile.write(body)
         elif self.path == "/history":
+            if not self._authorized():
+                self._send_json({"error": "unauthorized"}, status=401)
+                return
             self._send_json({"model": MODEL, "messages": load_history(100)})
         elif self.path == "/memory":
+            if not self._authorized():
+                self._send_json({"error": "unauthorized"}, status=401)
+                return
             self._send_json({
                 "profile": read_file(PROFILE_PATH),
                 "memories": read_file(MEMORIES_PATH),
@@ -171,6 +183,9 @@ class Handler(BaseHTTPRequestHandler):
 
     # ---------- POST ----------
     def do_POST(self):
+        if not self._authorized():
+            self._send_json({"error": "unauthorized"}, status=401)
+            return
         if self.path == "/chat":
             self._handle_chat()
         elif self.path == "/memory":
@@ -237,7 +252,13 @@ class Handler(BaseHTTPRequestHandler):
 
 def main():
     os.makedirs(MEMORY_DIR, exist_ok=True)
-    server = ThreadingHTTPServer(("127.0.0.1", PORT), Handler)
+    try:
+        server = ThreadingHTTPServer(("127.0.0.1", PORT), Handler)
+    except OSError:
+        print("⚠️ 이미 에이전트가 실행 중입니다 (포트 %d 사용 중)." % PORT)
+        print("   브라우저에서 http://localhost:%d 를 열어 그대로 사용하세요." % PORT)
+        webbrowser.open("http://localhost:%d" % PORT)
+        return
     print("🎬 크리에이터 에이전트 시작!")
     print("   모델: %s  (Ollama: %s)" % (MODEL, OLLAMA_URL))
     print("   브라우저에서 열기 → http://localhost:%d" % PORT)

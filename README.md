@@ -18,6 +18,19 @@
 **코드 받기 (git 없이):**
 GitHub 저장소 페이지 → 초록색 `Code` 버튼 → `Download ZIP` → 압축 풀기 → `start.bat` 더블클릭.
 
+## 어디서든 사용하기 (공개 링크)
+
+폰이나 외부에서도 접속하고 싶다면:
+
+1. `config.json`을 메모장으로 열어 비밀번호 설정: `"password": "내비밀번호123"`
+2. **`share.bat` 더블클릭** — 에이전트 실행 + 무료 Cloudflare 터널 생성
+3. 창에 나오는 `https://xxxx.trycloudflare.com` 주소를 폰에서 열기
+4. 첫 접속 시 비밀번호 입력 (한 번만)
+
+> ⚠️ PC가 켜져 있고 share.bat 창이 열려 있는 동안만 접속 가능합니다.
+> 링크 주소는 실행할 때마다 바뀝니다 (무료 터널의 특성).
+> macOS/Linux: `brew install cloudflared` 후 `cloudflared tunnel --url http://localhost:8800`
+
 ## 기능
 
 | 기능 | 설명 |
