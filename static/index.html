@@ -89,7 +89,34 @@
   .chip {
     font-size: 10.5px; padding: 3px 9px; border-radius: 999px;
     background: var(--panel2); border: 1px solid var(--border); color: var(--text);
+    display: inline-flex; align-items: center; gap: 4px;
   }
+  .chip .x { color: var(--dim); cursor: pointer; font-weight: 700; }
+  .chip .x:hover { color: #e05555; }
+  .chip.add { cursor: pointer; border-style: dashed; color: var(--dim); }
+  .chip.add:hover { color: var(--accent); border-color: var(--accent); }
+  .skill-group .gh { display: flex; align-items: center; gap: 6px; }
+  .skill-group .gh .del {
+    margin-left: auto; font-size: 10px; color: var(--dim); cursor: pointer;
+    border: 1px solid var(--border); border-radius: 6px; padding: 1px 6px;
+  }
+  .skill-group .gh .del:hover { color: #e05555; border-color: #e05555; }
+  .addAgentBtn {
+    width: 100%; margin-bottom: 10px; padding: 7px; font-size: 12px; font-weight: 700;
+    background: var(--panel2); border: 1px dashed var(--border); color: var(--accent);
+    border-radius: 9px; cursor: pointer;
+  }
+  .addAgentBtn:hover { border-color: var(--accent); }
+  .field { margin-bottom: 12px; }
+  .field label { display: block; font-size: 12px; color: var(--dim); margin-bottom: 4px; }
+  .field input, .field textarea {
+    width: 100%; background: var(--bg); color: var(--text); border: 1px solid var(--border);
+    border-radius: 8px; padding: 8px 10px; font-size: 13px; font-family: inherit;
+  }
+  .field textarea { min-height: 70px; resize: vertical; line-height: 1.5; }
+  .field.row2 { display: flex; gap: 10px; }
+  .field.row2 > div { flex: 1; }
+  .field.row2 .emoji { flex: 0 0 70px; }
 
   /* === 결과물 === */
   .out {
@@ -224,6 +251,27 @@
   </div>
 </div>
 
+<!-- 에이전트 추가/편집 모달 -->
+<div id="agentModal">
+  <div class="modalBox">
+    <h2 id="agentModalTitle">에이전트 추가</h2>
+    <div class="field row2">
+      <div class="emoji"><label>이모지</label><input id="agEmoji" maxlength="4" placeholder="🧑"></div>
+      <div><label>이름</label><input id="agName" placeholder="예: 디자이너"></div>
+    </div>
+    <div class="field"><label>역할 (업무 분담 설명)</label>
+      <input id="agRole" placeholder="예: 썸네일·그래픽 디자인을 담당합니다."></div>
+    <div class="field"><label>역할 프롬프트 (이 직원에게 주는 지침)</label>
+      <textarea id="agPrompt" placeholder="예: 당신은 디자이너입니다. 썸네일 시안과 그래픽 가이드를 제안하세요."></textarea></div>
+    <div class="field"><label>스킬 (쉼표로 구분)</label>
+      <input id="agSkills" placeholder="예: 썸네일, 색감, 타이포그래피"></div>
+    <div class="modalActions">
+      <button class="btn-ghost" id="closeAgent">취소</button>
+      <button class="btn-primary" id="saveAgent">저장</button>
+    </div>
+  </div>
+</div>
+
 <!-- 결과물 상세 모달 -->
 <div id="outModal">
   <div class="modalBox">
@@ -279,12 +327,64 @@ function setActive(id) {
 }
 
 // ---------- 스킬 / 역할 렌더 ----------
+function esc(s) { return String(s).replace(/&/g,"&amp;").replace(/</g,"&lt;").replace(/>/g,"&gt;"); }
+
 function renderSkills() {
-  $("skillBody").innerHTML = AGENTS.map(a => `
+  const body = $("skillBody");
+  body.innerHTML = `<button class="addAgentBtn" id="addAgentBtn">➕ 에이전트 추가</button>` +
+    AGENTS.map((a, ai) => `
     <div class="skill-group">
-      <div class="gh">${a.emoji} ${a.name}</div>
-      <div class="chips">${a.skills.map(s => `<span class="chip">${s}</span>`).join("")}</div>
+      <div class="gh">${a.emoji} ${esc(a.name)}
+        <span class="del" data-edit="${ai}">✎ 편집</span>
+        <span class="del" data-delagent="${ai}">🗑</span></div>
+      <div class="chips">
+        ${a.skills.map((s, si) => `<span class="chip">${esc(s)}<span class="x" data-da="${ai}" data-ds="${si}">✕</span></span>`).join("")}
+        <span class="chip add" data-addskill="${ai}">＋ 스킬 학습</span>
+      </div>
     </div>`).join("");
+
+  body.querySelector("#addAgentBtn").onclick = () => openAgentModal(null);
+  body.querySelectorAll("[data-edit]").forEach(el => el.onclick = () => openAgentModal(+el.dataset.edit));
+  body.querySelectorAll("[data-delagent]").forEach(el => el.onclick = () => {
+    const a = AGENTS[+el.dataset.delagent];
+    if (AGENTS.length <= 1) return alert("에이전트는 최소 1명 필요해요.");
+    if (confirm(`'${a.name}' 에이전트를 삭제할까요?`)) {
+      AGENTS.splice(+el.dataset.delagent, 1); saveAgents();
+    }
+  });
+  body.querySelectorAll("[data-addskill]").forEach(el => el.onclick = () => {
+    const s = prompt("학습시킬 스킬 이름을 입력하세요");
+    if (s && s.trim()) { AGENTS[+el.dataset.addskill].skills.push(s.trim()); saveAgents(); }
+  });
+  body.querySelectorAll(".chip .x").forEach(el => el.onclick = () => {
+    AGENTS[+el.dataset.da].skills.splice(+el.dataset.ds, 1); saveAgents();
+  });
+}
+
+async function saveAgents() {
+  try {
+    const res = await api("/agents", {
+      method: "POST", headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ agents: AGENTS })
+    });
+    const d = await res.json();
+    if (d.error) return alert(d.error);
+    AGENTS = d.agents; BY_ID = {}; AGENTS.forEach(a => BY_ID[a.id] = a);
+    if (!BY_ID[active]) active = AGENTS[0]?.id;
+    renderOffice(); renderSkills(); renderRoles(); if (active) setActive(active);
+  } catch (e) { alert("저장 실패 — 서버 연결을 확인하세요."); }
+}
+
+let editIdx = null;
+function openAgentModal(idx) {
+  editIdx = idx;
+  const a = idx === null ? { emoji: "🧑", name: "", role: "", prompt: "", skills: [] } : AGENTS[idx];
+  $("agentModalTitle").textContent = idx === null ? "에이전트 추가" : "에이전트 편집";
+  $("agEmoji").value = a.emoji; $("agName").value = a.name;
+  $("agRole").value = a.role; $("agPrompt").value = a.prompt;
+  $("agSkills").value = a.skills.join(", ");
+  $("agentModal").style.display = "flex";
+  $("agName").focus();
 }
 function renderRoles() {
   $("roleBody").innerHTML = AGENTS.map(a => `
@@ -415,6 +515,22 @@ $("saveMem").onclick = async () => {
   $("modal").style.display = "none";
 };
 $("closeOut").onclick = () => $("outModal").style.display = "none";
+$("closeAgent").onclick = () => $("agentModal").style.display = "none";
+$("saveAgent").onclick = () => {
+  const name = $("agName").value.trim();
+  if (!name) return alert("이름을 입력하세요.");
+  const data = {
+    emoji: $("agEmoji").value.trim() || "🧑",
+    name,
+    role: $("agRole").value.trim(),
+    prompt: $("agPrompt").value.trim(),
+    skills: $("agSkills").value.split(",").map(s => s.trim()).filter(Boolean),
+  };
+  if (editIdx === null) AGENTS.push(data);
+  else Object.assign(AGENTS[editIdx], data);
+  $("agentModal").style.display = "none";
+  saveAgents();
+};
 $("resetBtn").onclick = async () => {
   if (!confirm("대화와 결과물을 초기화할까요? (기록은 memory/archive/에 보관됩니다)")) return;
   await api("/reset", { method: "POST" });

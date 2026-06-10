@@ -98,6 +98,40 @@ def save_output(agent_id, user_msg, reply):
         "agent": agent_id, "title": title, "content": reply.strip()})
 
 
+def save_agents(new_list):
+    """프런트에서 받은 에이전트 명단을 검증·저장하고 메모리에 반영."""
+    global AGENTS, AGENTS_BY_ID
+    cleaned, used_ids = [], set()
+    for a in new_list:
+        name = (a.get("name") or "").strip()
+        if not name:
+            continue
+        aid = (a.get("id") or "").strip() or "agent"
+        base = aid
+        n = 2
+        while aid in used_ids:  # id 중복 방지
+            aid = "%s%d" % (base, n)
+            n += 1
+        used_ids.add(aid)
+        skills = [s.strip() for s in a.get("skills", []) if isinstance(s, str) and s.strip()]
+        cleaned.append({
+            "id": aid,
+            "name": name,
+            "emoji": (a.get("emoji") or "🧑").strip() or "🧑",
+            "role": (a.get("role") or "").strip() or "역할 설명을 입력하세요.",
+            "skills": skills,
+            "prompt": (a.get("prompt") or "").strip()
+                      or ("당신은 %s 역할의 직원입니다. 맡은 일을 구체적으로 처리하세요." % name),
+        })
+    if not cleaned:
+        return False
+    with open(os.path.join(ROOT, "agents.json"), "w", encoding="utf-8") as fh:
+        json.dump(cleaned, fh, ensure_ascii=False, indent=2)
+    AGENTS = cleaned
+    AGENTS_BY_ID = {a["id"]: a for a in AGENTS}
+    return True
+
+
 def remember(text):
     note = read_file(MEMORIES_PATH)
     if note and not note.endswith("\n"):
@@ -205,6 +239,12 @@ class Handler(BaseHTTPRequestHandler):
             return
         if self.path == "/chat":
             self._handle_chat()
+        elif self.path == "/agents":
+            body = self._read_body()
+            if save_agents(body.get("agents", [])):
+                self._send_json({"ok": True, "agents": AGENTS})
+            else:
+                self._send_json({"error": "에이전트가 최소 1명은 있어야 합니다"}, status=400)
         elif self.path == "/memory":
             body = self._read_body()
             if "profile" in body:
