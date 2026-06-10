@@ -1,0 +1,7 @@
+{
+  "model": "gemma4:12b",
+  "ollama_url": "http://localhost:11434",
+  "port": 8800,
+  "context_turns": 30,
+  "password": ""
+}

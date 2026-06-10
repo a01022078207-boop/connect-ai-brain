@@ -1,0 +1,230 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>🎬 크리에이터 에이전트</title>
+<style>
+  :root {
+    --bg: #0f1117; --panel: #181b25; --border: #2a2e3d;
+    --text: #e8eaf2; --dim: #8a8fa3; --accent: #7c6cf2; --user: #2b3046;
+  }
+  * { box-sizing: border-box; margin: 0; }
+  body {
+    background: var(--bg); color: var(--text);
+    font-family: "Pretendard", "Apple SD Gothic Neo", "Malgun Gothic", sans-serif;
+    display: flex; flex-direction: column; height: 100vh;
+  }
+  header {
+    display: flex; align-items: center; gap: 10px;
+    padding: 14px 20px; background: var(--panel); border-bottom: 1px solid var(--border);
+  }
+  header h1 { font-size: 16px; font-weight: 700; flex: 1; }
+  header .model { font-size: 12px; color: var(--dim); }
+  header button {
+    background: none; border: 1px solid var(--border); color: var(--dim);
+    border-radius: 8px; padding: 6px 12px; font-size: 12px; cursor: pointer;
+  }
+  header button:hover { color: var(--text); border-color: var(--accent); }
+  #chat { flex: 1; overflow-y: auto; padding: 24px 0; }
+  .row { display: flex; padding: 4px 20px; }
+  .row.user { justify-content: flex-end; }
+  .bubble {
+    max-width: 76%; padding: 11px 15px; border-radius: 14px;
+    font-size: 14.5px; line-height: 1.65; white-space: pre-wrap; word-break: break-word;
+  }
+  .user .bubble { background: var(--user); border-bottom-right-radius: 4px; }
+  .assistant .bubble { background: var(--panel); border: 1px solid var(--border); border-bottom-left-radius: 4px; }
+  .bubble.typing::after { content: "▌"; color: var(--accent); animation: blink 1s infinite; }
+  @keyframes blink { 50% { opacity: 0; } }
+  footer { padding: 14px 20px 18px; background: var(--panel); border-top: 1px solid var(--border); }
+  #inputRow { display: flex; gap: 10px; max-width: 860px; margin: 0 auto; }
+  #input {
+    flex: 1; resize: none; background: var(--bg); color: var(--text);
+    border: 1px solid var(--border); border-radius: 12px; padding: 12px 14px;
+    font-size: 14.5px; font-family: inherit; line-height: 1.5; max-height: 160px;
+  }
+  #input:focus { outline: none; border-color: var(--accent); }
+  #send {
+    background: var(--accent); color: #fff; border: none; border-radius: 12px;
+    padding: 0 22px; font-size: 14px; font-weight: 600; cursor: pointer;
+  }
+  #send:disabled { opacity: .45; cursor: default; }
+  .hint { text-align: center; font-size: 11.5px; color: var(--dim); margin-top: 8px; }
+  /* 메모리 모달 */
+  #modal {
+    display: none; position: fixed; inset: 0; background: rgba(0,0,0,.6);
+    align-items: center; justify-content: center; z-index: 10;
+  }
+  #modal .box {
+    background: var(--panel); border: 1px solid var(--border); border-radius: 16px;
+    width: min(680px, 92vw); max-height: 86vh; overflow-y: auto; padding: 22px;
+  }
+  #modal h2 { font-size: 15px; margin-bottom: 6px; }
+  #modal p { font-size: 12px; color: var(--dim); margin-bottom: 8px; }
+  #modal textarea {
+    width: 100%; min-height: 130px; background: var(--bg); color: var(--text);
+    border: 1px solid var(--border); border-radius: 10px; padding: 10px;
+    font-size: 13px; font-family: inherit; line-height: 1.6; margin-bottom: 16px; resize: vertical;
+  }
+  #modal .actions { display: flex; gap: 10px; justify-content: flex-end; }
+  #modal .actions button {
+    border-radius: 8px; padding: 8px 16px; font-size: 13px; cursor: pointer; border: none;
+  }
+  #saveMem { background: var(--accent); color: #fff; }
+  #closeMem { background: var(--border); color: var(--text); }
+</style>
+</head>
+<body>
+<header>
+  <h1>🎬 크리에이터 에이전트</h1>
+  <span class="model" id="model"></span>
+  <button id="memBtn">🧠 메모리</button>
+  <button id="resetBtn">🗑 새 대화</button>
+</header>
+
+<div id="chat"></div>
+
+<footer>
+  <div id="inputRow">
+    <textarea id="input" rows="1" placeholder="메시지 입력…  (Enter 전송 · Shift+Enter 줄바꿈)"></textarea>
+    <button id="send">전송</button>
+  </div>
+  <div class="hint">"기억해: ___" 라고 보내면 장기 메모리에 영구 저장됩니다</div>
+</footer>
+
+<div id="modal">
+  <div class="box">
+    <h2>👤 프로필</h2>
+    <p>나/채널에 대한 정보 — 매 대화의 시스템 프롬프트에 포함됩니다.</p>
+    <textarea id="profileTa"></textarea>
+    <h2>🧠 장기 메모리</h2>
+    <p>"기억해:" 명령으로 쌓이는 노트 — 직접 수정·삭제도 가능합니다.</p>
+    <textarea id="memTa"></textarea>
+    <div class="actions">
+      <button id="closeMem">닫기</button>
+      <button id="saveMem">저장</button>
+    </div>
+  </div>
+</div>
+
+<script>
+const chat = document.getElementById("chat");
+const input = document.getElementById("input");
+const sendBtn = document.getElementById("send");
+
+// 비밀번호가 설정된 서버(공개 링크)용 — 401이면 물어보고 저장 후 재시도
+async function api(path, opts = {}) {
+  opts.headers = Object.assign({}, opts.headers, {
+    "X-Password": localStorage.getItem("agent_pw") || ""
+  });
+  let res = await fetch(path, opts);
+  if (res.status === 401) {
+    const pw = prompt("🔒 비밀번호를 입력하세요");
+    if (pw === null) return res;
+    localStorage.setItem("agent_pw", pw);
+    opts.headers["X-Password"] = pw;
+    res = await fetch(path, opts);
+  }
+  return res;
+}
+
+function addMsg(role, text) {
+  const row = document.createElement("div");
+  row.className = "row " + role;
+  const b = document.createElement("div");
+  b.className = "bubble";
+  b.textContent = text;
+  row.appendChild(b);
+  chat.appendChild(row);
+  chat.scrollTop = chat.scrollHeight;
+  return b;
+}
+
+async function loadHistory() {
+  try {
+    const res = await api("/history");
+    const data = await res.json();
+    document.getElementById("model").textContent = data.model || "";
+    (data.messages || []).forEach(m => {
+      if (m.role === "user" || m.role === "assistant") addMsg(m.role, m.content);
+    });
+    if (!data.messages || data.messages.length === 0) {
+      addMsg("assistant", "안녕하세요! 🎬 당신의 콘텐츠 크리에이터 파트너입니다.\n주제 기획, 대본, 제목·후크, 아이디어 정리 — 뭐든 말씀해 주세요.\n\n팁: \"기억해: 내 채널은 ___\" 라고 보내면 저를 점점 더 나에게 맞출 수 있어요.");
+    }
+  } catch (e) { /* 서버 미동작 시 무시 */ }
+}
+
+async function send() {
+  const text = input.value.trim();
+  if (!text || sendBtn.disabled) return;
+  input.value = "";
+  input.style.height = "auto";
+  addMsg("user", text);
+  sendBtn.disabled = true;
+  const bubble = addMsg("assistant", "");
+  bubble.classList.add("typing");
+  try {
+    const res = await api("/chat", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ message: text })
+    });
+    const reader = res.body.getReader();
+    const dec = new TextDecoder();
+    while (true) {
+      const { done, value } = await reader.read();
+      if (done) break;
+      bubble.textContent += dec.decode(value, { stream: true });
+      chat.scrollTop = chat.scrollHeight;
+    }
+  } catch (e) {
+    bubble.textContent += "\n⚠️ 서버 연결이 끊겼습니다. agent.py가 실행 중인지 확인해 주세요.";
+  }
+  bubble.classList.remove("typing");
+  sendBtn.disabled = false;
+  input.focus();
+}
+
+sendBtn.addEventListener("click", send);
+input.addEventListener("keydown", e => {
+  if (e.key === "Enter" && !e.shiftKey && !e.isComposing) { e.preventDefault(); send(); }
+});
+input.addEventListener("input", () => {
+  input.style.height = "auto";
+  input.style.height = Math.min(input.scrollHeight, 160) + "px";
+});
+
+document.getElementById("resetBtn").addEventListener("click", async () => {
+  if (!confirm("대화를 초기화할까요? (기록은 memory/archive/에 보관됩니다)")) return;
+  await api("/reset", { method: "POST" });
+  chat.innerHTML = "";
+  loadHistory();
+});
+
+const modal = document.getElementById("modal");
+document.getElementById("memBtn").addEventListener("click", async () => {
+  const res = await api("/memory");
+  const data = await res.json();
+  document.getElementById("profileTa").value = data.profile || "";
+  document.getElementById("memTa").value = data.memories || "";
+  modal.style.display = "flex";
+});
+document.getElementById("closeMem").addEventListener("click", () => modal.style.display = "none");
+document.getElementById("saveMem").addEventListener("click", async () => {
+  await api("/memory", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({
+      profile: document.getElementById("profileTa").value,
+      memories: document.getElementById("memTa").value
+    })
+  });
+  modal.style.display = "none";
+});
+
+loadHistory();
+input.focus();
+</script>
+</body>
+</html>
