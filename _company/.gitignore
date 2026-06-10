@@ -1,5 +1,0 @@
-# 시크릿·캐시는 동기화 제외
-_agents/*/config.md
-_cache/
-_tmp/
-*.log

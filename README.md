@@ -1,0 +1,56 @@
+# 🎬 나만의 크리에이터 에이전트
+
+로컬 Ollama(`gemma4:12b`)를 두뇌로 쓰는 **1인 콘텐츠 크리에이터 파트너**.
+설치할 라이브러리 없음 — Python과 Ollama만 있으면 됩니다.
+
+## 실행 방법
+
+```bash
+# 1. (처음 한 번) 모델 준비 — 이미 받았다면 생략
+ollama pull gemma4:12b
+
+# 2. 에이전트 시작
+python agent.py
+
+# 3. 브라우저에서 열기
+#    → http://localhost:8800
+```
+
+> Windows에서 `python`이 안 되면 `py agent.py`로 실행하세요.
+> Ollama 앱이 켜져 있어야 합니다 (보통 자동 실행됨).
+
+## 기능
+
+| 기능 | 설명 |
+|---|---|
+| 💬 채팅 | 스트리밍 응답 웹 채팅 UI. 대화는 자동 저장되어 재시작해도 이어짐 |
+| 🧠 장기 메모리 | `기억해: 내 채널은 OOO` 라고 보내면 `memory/memories.md`에 영구 저장 |
+| 👤 프로필 | `memory/profile.md`에 나/채널 정보 — 매 대화에 자동 반영 |
+| 🗑 새 대화 | 기록은 지워지지 않고 `memory/archive/`로 보관 |
+
+## 구조
+
+```
+agent.py            ← 서버 전체 (표준 라이브러리만 사용)
+config.json         ← 모델·포트 설정
+static/index.html   ← 채팅 UI
+memory/
+  profile.md        ← 내 정보 (직접 편집)
+  memories.md       ← 장기 메모리 (자동 누적 + 직접 편집)
+  history.jsonl     ← 대화 기록 (자동)
+  archive/          ← 초기화한 옛 대화 보관
+```
+
+## 설정 바꾸기 (`config.json`)
+
+- `model` — 다른 Ollama 모델로 교체 (예: `"gemma4:e4b"` — 가볍고 빠름)
+- `port` — 웹 UI 포트 (기본 8800)
+- `context_turns` — 매 요청에 포함할 최근 대화 수 (기본 30)
+
+## 메모리를 다른 PC와 동기화하려면
+
+이 저장소를 git으로 push/pull 하면 `memory/`가 함께 옮겨집니다.
+
+```bash
+git add memory && git commit -m "메모리 동기화" && git push
+```
