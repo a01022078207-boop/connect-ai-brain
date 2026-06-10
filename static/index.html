@@ -26,6 +26,31 @@
     border-radius: 8px; padding: 6px 12px; font-size: 12px; cursor: pointer;
   }
   header button:hover { color: var(--text); border-color: var(--accent); }
+  /* 캐릭터 작업실 */
+  #studio {
+    display: flex; align-items: center; gap: 14px;
+    padding: 10px 20px; background: linear-gradient(180deg, var(--panel), var(--bg));
+    border-bottom: 1px solid var(--border);
+  }
+  #charFace {
+    font-size: 36px; line-height: 1; display: inline-block;
+    animation: float 3s ease-in-out infinite;
+  }
+  #charFace.working { animation: work .45s ease-in-out infinite; }
+  @keyframes float { 0%,100% { transform: translateY(0); } 50% { transform: translateY(-5px); } }
+  @keyframes work {
+    0%,100% { transform: translateY(0) rotate(-4deg); }
+    50% { transform: translateY(-3px) rotate(4deg) scale(1.08); }
+  }
+  #studioInfo { flex: 1; min-width: 0; }
+  #studioState { font-size: 13.5px; font-weight: 700; }
+  #studioDetail { font-size: 11.5px; color: var(--dim); margin-top: 1px; }
+  #studioDot {
+    width: 10px; height: 10px; border-radius: 50%; background: #555; flex-shrink: 0;
+  }
+  #studioDot.on { background: #3ddc84; animation: pulse 1s infinite; }
+  #studioDot.err { background: #e05555; }
+  @keyframes pulse { 0%,100% { opacity: 1; } 50% { opacity: .3; } }
   #chat { flex: 1; overflow-y: auto; padding: 24px 0; }
   .row { display: flex; padding: 4px 20px; }
   .row.user { justify-content: flex-end; }
@@ -83,6 +108,15 @@
   <button id="resetBtn">🗑 새 대화</button>
 </header>
 
+<div id="studio">
+  <span id="charFace">😌</span>
+  <div id="studioInfo">
+    <div id="studioState">대기 중</div>
+    <div id="studioDetail">말을 걸어보세요 — 일하는 모습이 여기 보여요</div>
+  </div>
+  <span id="studioDot"></span>
+</div>
+
 <div id="chat"></div>
 
 <footer>
@@ -129,6 +163,56 @@ async function api(path, opts = {}) {
   return res;
 }
 
+// ---------- 캐릭터 작업실 ----------
+const charFace = document.getElementById("charFace");
+const studioState = document.getElementById("studioState");
+const studioDetail = document.getElementById("studioDetail");
+const studioDot = document.getElementById("studioDot");
+const WORK_FRAMES = ["🤔", "✍️", "⚡", "📝", "💡"];
+let studio = { timer: null, start: 0, chars: 0, frame: 0, idleTimer: null };
+
+function studioIdle() {
+  clearInterval(studio.timer); studio.timer = null;
+  charFace.classList.remove("working");
+  charFace.textContent = "😌";
+  studioState.textContent = "대기 중";
+  studioDetail.textContent = "말을 걸어보세요 — 일하는 모습이 여기 보여요";
+  studioDot.className = "";
+}
+
+function studioWork() {
+  clearTimeout(studio.idleTimer);
+  studio.start = Date.now(); studio.chars = 0; studio.frame = 0;
+  charFace.classList.add("working");
+  studioDot.className = "on";
+  studioState.textContent = "작업 중...";
+  clearInterval(studio.timer);
+  studio.timer = setInterval(() => {
+    studio.frame = (studio.frame + 1) % WORK_FRAMES.length;
+    charFace.textContent = WORK_FRAMES[studio.frame];
+    const sec = Math.floor((Date.now() - studio.start) / 1000);
+    studioDetail.textContent = "⏱ " + sec + "초 경과 · " + studio.chars + "자 작성 중";
+  }, 350);
+}
+
+function studioDone(ok) {
+  clearInterval(studio.timer); studio.timer = null;
+  charFace.classList.remove("working");
+  const sec = Math.max(1, Math.round((Date.now() - studio.start) / 1000));
+  if (ok) {
+    charFace.textContent = "😎";
+    studioState.textContent = "완료!";
+    studioDetail.textContent = sec + "초 만에 " + studio.chars + "자 작성했어요";
+    studioDot.className = "";
+  } else {
+    charFace.textContent = "😵";
+    studioState.textContent = "문제 발생";
+    studioDetail.textContent = "Ollama 연결을 확인해 주세요 (ollama 앱 실행 여부)";
+    studioDot.className = "err";
+  }
+  studio.idleTimer = setTimeout(studioIdle, 4000);
+}
+
 function addMsg(role, text) {
   const row = document.createElement("div");
   row.className = "row " + role;
@@ -164,6 +248,8 @@ async function send() {
   sendBtn.disabled = true;
   const bubble = addMsg("assistant", "");
   bubble.classList.add("typing");
+  studioWork();
+  let ok = true;
   try {
     const res = await api("/chat", {
       method: "POST",
@@ -175,12 +261,17 @@ async function send() {
     while (true) {
       const { done, value } = await reader.read();
       if (done) break;
-      bubble.textContent += dec.decode(value, { stream: true });
+      const piece = dec.decode(value, { stream: true });
+      bubble.textContent += piece;
+      studio.chars += piece.length;
       chat.scrollTop = chat.scrollHeight;
     }
+    if (bubble.textContent.startsWith("⚠️")) ok = false;
   } catch (e) {
     bubble.textContent += "\n⚠️ 서버 연결이 끊겼습니다. agent.py가 실행 중인지 확인해 주세요.";
+    ok = false;
   }
+  studioDone(ok);
   bubble.classList.remove("typing");
   sendBtn.disabled = false;
   input.focus();
